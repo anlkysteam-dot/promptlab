@@ -1,0 +1,86 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  /// Uygulama sorguları: Neon’da “pooled” önerilir (serverless / çok bağlantı).
+  url       = env("DATABASE_URL")
+  /// Migrate ve introspect: Neon’da “direct” (non-pooling) URL kullanın.
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  /// Clerk kullanıcı id (user_...); OAuth / giriş Clerk üzerinden
+  clerkUserId   String?   @unique
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  /// bcrypt ile (e-posta/şifre kaydı). OAuth-only kullanıcılarda null.
+  passwordHash  String?
+  isPremium     Boolean   @default(false)
+  premiumUntil  DateTime?
+  /// Stripe müşteri id (cus_...)
+  stripeCustomerId     String? @unique
+  /// Aktif abonelik id (sub_...)
+  stripeSubscriptionId String? @unique
+  accounts             Account[]
+  sessions             Session[]
+  passwordResetTokens  PasswordResetToken[]
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expires   DateTime
+  createdAt DateTime @default(now())
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+/// subjectKey: "anon:<uuid>" veya "user:<userId>" — gün anahtarı Europe/Istanbul
+model UsageCounter {
+  id         String @id @default(cuid())
+  subjectKey String
+  day        String
+  count      Int    @default(0)
+
+  @@unique([subjectKey, day])
+}

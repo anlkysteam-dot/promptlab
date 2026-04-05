@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0b0f14;
+  --surface: #121922;
+  --border: #243044;
+  --text: #e8eef7;
+  --muted: #8b9cb3;
+  --accent: #5eead4;
+  --accent-dim: #2dd4bf33;
+  --brand-lab: #a78bfa;
+  --brand-lab-dim: #a78bfa33;
+}
+
+html {
+  color-scheme: dark;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+body {
+  background: radial-gradient(1200px 600px at 20% -10%, #1a2a38 0%, transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, #132028 0%, transparent 50%), var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
