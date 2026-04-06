@@ -659,6 +659,15 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
         {copied ? tx("Prompt panoya kopyalandı.", "Prompt copied to clipboard.") : ""}
       </div>
 
+      <div className="flex justify-center">
+        <Link
+          href="/pricing"
+          className="text-base font-semibold text-[var(--accent)] underline-offset-4 hover:underline"
+        >
+          {t.pricing}
+        </Link>
+      </div>
+
       <div className="rounded-lg border border-[var(--brand-lab-dim)] bg-[var(--brand-lab-dim)] px-3 py-2 text-center text-sm text-[var(--text)]">
         <span className="font-medium text-[var(--brand-lab)]">{tx("Bu hafta", "This week")}</span>{" "}
         <span className="tabular-nums font-semibold">{weeklyEstimate.toLocaleString(isEn ? "en-US" : "tr-TR")}</span>{" "}
@@ -1540,10 +1549,6 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           <span className="mx-2 text-[var(--border)]">·</span>
           <Link href="/hizmet-sartlari" className="text-[var(--text)] hover:underline">
             {tx("Hizmet şartları", "Terms of service")}
-          </Link>
-          <span className="mx-2 text-[var(--border)]">·</span>
-          <Link href="/pricing" className="text-[var(--accent)] hover:underline">
-            {t.pricing}
           </Link>
           <span className="mx-2 text-[var(--border)]">·</span>
           <Link href="/discover" className="text-[var(--muted)] hover:text-[var(--text)] hover:underline">

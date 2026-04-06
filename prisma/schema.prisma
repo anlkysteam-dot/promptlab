@@ -67,6 +67,16 @@ model User {
   creditLedgerEntries  CreditLedgerEntry[]
 }
 
+/// Site hakkında geri bildirim formu (anonim e-posta + mesaj)
+model FeedbackSubmission {
+  id        String   @id @default(cuid())
+  email     String
+  message   String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt(sort: Desc)])
+}
+
 /// Kredi hareketleri (satın alma idempotency + üretim harcaması)
 model CreditLedgerEntry {
   id          String   @id @default(cuid())
