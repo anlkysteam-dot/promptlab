@@ -1273,7 +1273,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           )}
         </section>
 
-        <BeforeAfterExamples />
+        <BeforeAfterExamples locale={locale} />
       </main>
 
       <footer className="mt-auto border-t border-[var(--border)] pt-8 text-center">
