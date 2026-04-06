@@ -1,6 +1,6 @@
 const EXAMPLES = [
   {
-    name: "Emre Ş.",
+    name: "Hüseyin Ş.",
     user: "LinkedIn’de paylaşmak için kısa bir kariyer tavsiyesi yazısı; motive edici ama abartısız.",
     prompt:
       "Write a concise LinkedIn post (under 200 words) offering one practical career tip for junior developers. Tone: encouraging, professional, no hype or buzzwords. End with a soft call to comment.",
@@ -12,7 +12,7 @@ const EXAMPLES = [
       "You are a Python tutor. Provide a minimal script skeleton that: reads a CSV with pandas, prints row count, column names, and basic describe() stats, with brief comments. Use type hints where helpful.",
   },
   {
-    name: "Selin Y.",
+    name: "Turan D.",
     user: "Çocuklar için 8 yaşında bir doğum günü davetiyesi metni; neşeli ve kısa.",
     prompt:
       "Draft a short birthday party invitation message for parents to send via WhatsApp, child turning 8, playful tone, Turkish cultural context OK in vibe but output the invitation text in English for an international school setting.",
