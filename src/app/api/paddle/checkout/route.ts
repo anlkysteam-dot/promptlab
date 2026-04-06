@@ -45,19 +45,6 @@ export async function POST() {
     );
   }
 
-  let url = transaction.checkout?.url ?? null;
-  if (!url) {
-    try {
-      const refreshed = await paddle.transactions.get(transaction.id);
-      url = refreshed.checkout?.url ?? null;
-    } catch (e) {
-      console.error("Paddle transaction get:", e);
-    }
-  }
-
-  if (url) {
-    return NextResponse.json({ url });
-  }
-
+  // Frontend Paddle.js ile overlay açıyoruz; URL redirect'ine bağlı kalmıyoruz.
   return NextResponse.json({ transactionId: transaction.id });
 }
