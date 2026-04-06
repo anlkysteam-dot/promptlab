@@ -252,18 +252,9 @@ export function ProfileClient({
           </div>
           <p className="text-sm text-[var(--muted)]">{email ?? user.primaryEmailAddress?.emailAddress ?? "—"}</p>
         </div>
-        <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
-          <button
-            type="button"
-            onClick={() => signOut({ redirectUrl: homePath })}
-            className="rounded-md border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text)] hover:bg-[var(--hover-surface)]"
-          >
-            {tx("Çıkış yap", "Sign out")}
-          </button>
-          <Link href={homePath} className="text-sm text-[var(--accent)] hover:underline">
-            ← {tx("Lab’a dön", "Back to Lab")}
-          </Link>
-        </div>
+        <Link href={homePath} className="text-sm text-[var(--accent)] hover:underline sm:self-start">
+          ← {tx("Lab’a dön", "Back to Lab")}
+        </Link>
       </header>
 
       <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
@@ -439,17 +430,52 @@ export function ProfileClient({
 
       <RecentGenerationsPanel locale={locale} labPath={homePath} defaultOpen />
 
-      <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-[var(--muted)]">
-        <Link href="/discover" className="text-[var(--accent)] hover:underline">
-          {tx("Keşfet", "Discover")}
-        </Link>
-        <Link href="/pricing" className="hover:text-[var(--text)]">
-          {tx("Fiyatlandırma", "Pricing")}
-        </Link>
-        <Link href={locale === "en" ? "/tr/profil" : "/en/profile"} className="hover:text-[var(--text)]">
-          {locale === "en" ? "TR" : "EN"}
-        </Link>
-      </div>
+      <details className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium text-[var(--text)] [&::-webkit-details-marker]:hidden">
+          {tx("Ayarlar", "Settings")}
+          <span className="text-xs font-normal text-[var(--muted)]">{tx("tema · linkler · çıkış", "theme · links · sign out")}</span>
+        </summary>
+        <div className="mt-4 space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">{tx("Tema", "Theme")}</p>
+              <div className="mt-2 max-w-xs">
+                <ThemePreferenceSelect locale={locale} />
+              </div>
+            </div>
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">{tx("Kısayollar", "Shortcuts")}</p>
+              <p className="mt-2 text-xs text-[var(--muted)]">
+                {tx("Lab’da", "On the Lab, press")}{" "}
+                <kbd className="rounded border border-[var(--border)] bg-[var(--surface)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--text)]">?</kbd>{" "}
+                {tx("ile tüm kısayolları görürsün.", "to see all shortcuts.")}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-[var(--muted)]">
+            <Link href="/discover" className="text-[var(--accent)] hover:underline">
+              {tx("Keşfet", "Discover")}
+            </Link>
+            <Link href="/pricing" className="hover:text-[var(--text)] hover:underline">
+              {tx("Fiyatlandırma", "Pricing")}
+            </Link>
+            <Link href={locale === "en" ? "/tr/profil" : "/en/profile"} className="hover:text-[var(--text)] hover:underline">
+              {locale === "en" ? "TR" : "EN"}
+            </Link>
+          </div>
+
+          <div className="border-t border-[var(--border)] pt-4">
+            <button
+              type="button"
+              onClick={() => signOut({ redirectUrl: homePath })}
+              className="inline-flex w-full items-center justify-center rounded-lg border border-[var(--err-border)] bg-[var(--err-bg)] px-4 py-2.5 text-sm font-semibold text-[var(--err-fg)] hover:opacity-95 sm:w-auto"
+            >
+              {tx("Çıkış yap", "Sign out")}
+            </button>
+          </div>
+        </div>
+      </details>
     </div>
   );
 }

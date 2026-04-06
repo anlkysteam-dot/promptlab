@@ -590,9 +590,6 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
             <span className="text-sm text-[var(--muted)]">Oturum…</span>
           ) : user ? (
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <span className="text-sm text-[var(--muted)]">
-                {user.primaryEmailAddress?.emailAddress ?? user.username ?? user.firstName ?? "Hesap"}
-              </span>
               <Link
                 href={isEn ? "/en/profile" : "/tr/profil"}
                 className="rounded-md border border-[var(--border)] px-3 py-1.5 text-sm font-medium text-[var(--text)] hover:bg-[var(--hover-surface)]"
