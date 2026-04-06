@@ -40,3 +40,28 @@ export async function grantPurchasedCreditsIdempotent(
     throw e;
   }
 }
+
+/**
+ * Ödeme sonrası teknik sorun vb. için yönetici tarafından manuel kredi ekler (deftere `manual_grant` yazar).
+ */
+export async function grantManualCredits(userId: string, credits: number, summary: string): Promise<void> {
+  const n = Math.floor(credits);
+  if (!Number.isFinite(n) || n <= 0) throw new Error("invalid_amount");
+  const sum = summary.trim().slice(0, 500) || `Manuel +${n} kredi`;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.creditLedgerEntry.create({
+      data: {
+        userId,
+        kind: "manual_grant",
+        delta: n,
+        externalRef: null,
+        summary: sum,
+      },
+    });
+    await tx.user.update({
+      where: { id: userId },
+      data: { creditBalance: { increment: n } },
+    });
+  });
+}

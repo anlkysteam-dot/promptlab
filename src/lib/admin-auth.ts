@@ -41,3 +41,18 @@ export async function assertAdmin() {
 export function getAdminEmail(): string | null {
   return normalizeAdminEnv(process.env.ADMIN_EMAIL);
 }
+
+/** API route veya server action: redirect yok, sadece yetki kontrolü. */
+export async function isAdminSession(): Promise<boolean> {
+  try {
+    const { userId } = await auth();
+    if (!userId) return false;
+    const expected = normalizeAdminEnv(process.env.ADMIN_EMAIL);
+    if (!expected) return false;
+    const u = await currentUser();
+    if (!u) return false;
+    return clerkUserEmails(u).includes(expected);
+  } catch {
+    return false;
+  }
+}

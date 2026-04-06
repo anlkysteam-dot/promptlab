@@ -1,6 +1,6 @@
 import { prisma } from "./prisma";
 
-function premiumEmailList(): string[] {
+export function premiumEmailList(): string[] {
   const raw = process.env.PREMIUM_EMAILS ?? "";
   return raw
     .split(",")
