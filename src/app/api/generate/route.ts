@@ -48,6 +48,17 @@ import {
 
 
 const validTargetIds = new Set<string>(AI_TARGETS.map((t) => t.id));
+const MEDIA_TARGET_IDS = new Set<AiTargetId>(["midjourney", "dalle", "runway", "veo", "sora", "kling", "pika"]);
+
+function outputLanguageInstruction(language: "tr" | "en", target: AiTargetId): string {
+  if (MEDIA_TARGET_IDS.has(target)) {
+    return "For this media target, keep prompt language optimized for model performance.";
+  }
+  if (language === "en") {
+    return "Final response language lock: English. Do not switch language unless the user explicitly asks.";
+  }
+  return "Final response language lock: Turkish (tr-TR). Do not switch language unless the user explicitly asks.";
+}
 
 
 
@@ -114,6 +125,9 @@ export async function POST(req: Request) {
   const qualityMode = ((body as { qualityMode?: string })?.qualityMode === "advanced"
     ? "advanced"
     : "normal") as PromptQualityMode;
+  const outputLanguage = ((body as { outputLanguage?: string })?.outputLanguage === "en" ? "en" : "tr") as
+    | "tr"
+    | "en";
   const mediaPresetRaw = String((body as { mediaPreset?: string })?.mediaPreset ?? "none");
   const mediaPreset = (
     [
@@ -390,6 +404,7 @@ export async function POST(req: Request) {
       "Rewrite the following user request into a high-quality English prompt for the selected AI target.",
       "Do not translate literally; optimize for result quality.",
       qualityModeInstruction(qualityMode),
+      outputLanguageInstruction(outputLanguage, target),
       templateInstruction(templateKind),
       mediaPresetInstruction(mediaPreset),
       checklistInstruction(templateKind),

@@ -45,6 +45,16 @@ const STARTER_CATEGORY_LABELS: Record<StarterCategory, string> = {
   video: "🎬 Video",
   image: "🖼️ Görsel",
 };
+const PROJECT_STYLE_PRESETS = [
+  "Yok / serbest",
+  "Sinematik",
+  "Anime",
+  "Realistik",
+  "Belgesel",
+  "Yağlı boya",
+  "Cyberpunk neon",
+  "Minimal flat",
+] as const;
 
 function defaultMediaPresetForTarget(target: AiTargetId): MediaPreset {
   switch (target) {
@@ -93,6 +103,8 @@ function ResultSkeleton() {
 }
 
 type OutputMode = "prompt-only" | "with-tip";
+type OutputLanguage = "tr" | "en";
+type UiLocale = "tr" | "en";
 type ProjectItem = {
   id: string;
   title: string;
@@ -111,7 +123,64 @@ type SceneItem = {
   createdAt: string;
 };
 
-export function PromptWorkbench() {
+const UI_TEXT: Record<
+  UiLocale,
+  {
+    login: string;
+    pricing: string;
+    about: string;
+    promptQuestion: string;
+    quickStart: string;
+    projectSection: string;
+    createProject: string;
+    creating: string;
+    activeProject: string;
+    noProject: string;
+    projectFlow: string;
+    scene: string;
+    edit: string;
+    regenerate: string;
+    outputLanguage: string;
+  }
+> = {
+  tr: {
+    login: "Giriş / Kayıt",
+    pricing: "Premium",
+    about: "Hakkımızda",
+    promptQuestion: "Ne yapmak istiyorsun?",
+    quickStart: "Hızlı başlat",
+    projectSection: "Sahne projesi",
+    createProject: "Yeni proje",
+    creating: "Oluşturuluyor…",
+    activeProject: "Aktif proje (devamlılık hafızası)",
+    noProject: "Proje seçmeden üret (tek seferlik)",
+    projectFlow: "Sahne akışı",
+    scene: "Sahne",
+    edit: "Düzenle",
+    regenerate: "Yeniden üret",
+    outputLanguage: "ChatGPT yanıt dili",
+  },
+  en: {
+    login: "Sign in / Register",
+    pricing: "Pricing",
+    about: "About",
+    promptQuestion: "What do you want to create?",
+    quickStart: "Quick start",
+    projectSection: "Scene project",
+    createProject: "New project",
+    creating: "Creating…",
+    activeProject: "Active project (continuity memory)",
+    noProject: "Generate without project (one-off)",
+    projectFlow: "Scene timeline",
+    scene: "Scene",
+    edit: "Edit",
+    regenerate: "Regenerate",
+    outputLanguage: "ChatGPT response language",
+  },
+};
+
+export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
+  const t = UI_TEXT[locale];
   const { user, isLoaded } = useUser();
   const { signOut } = useClerk();
   const [intent, setIntent] = useState("");
@@ -127,6 +196,7 @@ export function PromptWorkbench() {
   const [copied, setCopied] = useState(false);
   const [outputMode, setOutputMode] = useState<OutputMode>("prompt-only");
   const [qualityMode, setQualityMode] = useState<PromptQualityMode>("normal");
+  const [outputLanguage, setOutputLanguage] = useState<OutputLanguage>("tr");
   const [mediaPreset, setMediaPreset] = useState<MediaPreset>("none");
   const [recentOpen, setRecentOpen] = useState(false);
   const [recentList, setRecentList] = useState<RecentPromptEntry[]>([]);
@@ -138,6 +208,7 @@ export function PromptWorkbench() {
   const [projectTitle, setProjectTitle] = useState("");
   const [projectCharacterProfile, setProjectCharacterProfile] = useState("");
   const [projectStyleProfile, setProjectStyleProfile] = useState("");
+  const [projectStylePreset, setProjectStylePreset] = useState<(typeof PROJECT_STYLE_PRESETS)[number]>("Yok / serbest");
   const [projectScenes, setProjectScenes] = useState<SceneItem[]>([]);
   const [projectLoading, setProjectLoading] = useState(false);
 
@@ -150,6 +221,7 @@ export function PromptWorkbench() {
     if (IMAGE_TARGETS.includes(effectiveTarget)) return "image";
     return null;
   }, [effectiveTarget]);
+  const showSceneProjectUI = useMemo(() => expertMode && VIDEO_TARGETS.includes(target), [expertMode, target]);
   const mediaPresetOptions = useMemo(
     () =>
       MEDIA_PRESET_OPTIONS.filter((o) => o.kind === "all" || (mediaKind ? o.kind === mediaKind : false)),
@@ -260,8 +332,9 @@ export function PromptWorkbench() {
           tone,
           audience,
           qualityMode,
+          outputLanguage,
           mediaPreset,
-          projectId: activeProjectId || undefined,
+          projectId: showSceneProjectUI ? activeProjectId || undefined : undefined,
         }),
       });
       const raw = await r.text();
@@ -306,6 +379,10 @@ export function PromptWorkbench() {
   async function createProject() {
     const cleanTitle = projectTitle.trim();
     if (!cleanTitle) return;
+    const composedStyleProfile =
+      projectStylePreset && projectStylePreset !== "Yok / serbest"
+        ? [projectStylePreset, projectStyleProfile.trim()].filter(Boolean).join(" | ")
+        : projectStyleProfile.trim();
     setProjectLoading(true);
     try {
       const r = await fetch("/api/projects", {
@@ -315,7 +392,7 @@ export function PromptWorkbench() {
           title: cleanTitle,
           target: effectiveTarget,
           characterProfile: projectCharacterProfile,
-          styleProfile: projectStyleProfile,
+          styleProfile: composedStyleProfile,
         }),
       });
       if (!r.ok) return;
@@ -323,6 +400,7 @@ export function PromptWorkbench() {
       setProjectTitle("");
       setProjectCharacterProfile("");
       setProjectStyleProfile("");
+      setProjectStylePreset("Yok / serbest");
       await loadProjects();
       if (j.id) {
         setActiveProjectId(j.id);
@@ -331,6 +409,18 @@ export function PromptWorkbench() {
     } finally {
       setProjectLoading(false);
     }
+  }
+
+  function editScene(scene: SceneItem) {
+    setIntent(scene.userInput);
+  }
+
+  function regenerateScene(scene: SceneItem) {
+    setIntent(scene.userInput);
+    window.setTimeout(() => {
+      const form = document.getElementById("workbench-form") as HTMLFormElement | null;
+      if (form && !loading) form.requestSubmit();
+    }, 0);
   }
 
   async function copyResult() {
@@ -487,15 +577,21 @@ export function PromptWorkbench() {
               href="/auth"
               className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-center text-sm font-medium text-[var(--text)] hover:bg-white/5 sm:text-right"
             >
-              Giriş / Kayıt
+              {t.login}
             </Link>
           )}
           <div className="flex flex-wrap justify-end gap-x-3 gap-y-1 text-sm">
             <Link href="/pricing" className="text-[var(--accent)] hover:underline">
-              Premium
+              {t.pricing}
             </Link>
             <Link href="/hakkimizda" className="text-[var(--muted)] hover:text-[var(--text)] hover:underline">
-              Hakkımızda
+              {t.about}
+            </Link>
+            <Link href="/tr" className="text-[var(--muted)] hover:text-[var(--text)] hover:underline">
+              TR
+            </Link>
+            <Link href="/en" className="text-[var(--muted)] hover:text-[var(--text)] hover:underline">
+              EN
             </Link>
           </div>
         </div>
@@ -503,7 +599,7 @@ export function PromptWorkbench() {
 
       <main className="flex flex-col gap-8">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">Hızlı başlat</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">{t.quickStart}</p>
           <p className="mt-1 text-xs text-[var(--muted)]">
             Aynı butona her tıklamada o kategoriye ait farklı bir örnek gelir.
           </p>
@@ -553,13 +649,45 @@ export function PromptWorkbench() {
           </div>
         </div>
 
+        {isLoaded && user?.id && showSceneProjectUI ? (
+          <section className="grid gap-3 lg:grid-cols-[260px_1fr]">
+            <aside className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 lg:sticky lg:top-24 lg:h-fit">
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">Project sidebar</p>
+              <div className="mt-2 space-y-2">
+                {projects.length === 0 ? (
+                  <p className="text-xs text-[var(--muted)]">Video projesi oluşturduğunda burada listelenecek.</p>
+                ) : (
+                  projects.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setActiveProjectId(p.id)}
+                      className={`w-full rounded-lg border px-2 py-2 text-left text-xs ${
+                        activeProjectId === p.id
+                          ? "border-[var(--brand-lab)] bg-[var(--brand-lab-dim)] text-[var(--text)]"
+                          : "border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]"
+                      }`}
+                    >
+                      <p className="font-medium">{p.title}</p>
+                      <p className="mt-0.5 opacity-80">{p.sceneCount} sahne</p>
+                    </button>
+                  ))
+                )}
+              </div>
+            </aside>
+            <div className="rounded-xl border border-dashed border-[var(--border)] px-3 py-2 text-xs text-[var(--muted)]">
+              Proje seçtiğinde sahne üretimleri aynı karakter ve stile bağlı kalır.
+            </div>
+          </section>
+        ) : null}
+
         <form
           id="workbench-form"
           onSubmit={onSubmit}
           className="flex flex-col gap-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6"
         >
           <label className="text-sm font-medium text-[var(--text)]" htmlFor="workbench-intent">
-            Ne yapmak istiyorsun?
+            {t.promptQuestion}
           </label>
           <textarea
             id="workbench-intent"
@@ -582,9 +710,9 @@ export function PromptWorkbench() {
             ).
           </p>
 
-          {isLoaded && user?.id ? (
+          {isLoaded && user?.id && showSceneProjectUI ? (
             <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)]/40 p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">Sahne projesi</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">{t.projectSection}</p>
               <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
                 <input
                   value={projectTitle}
@@ -598,7 +726,7 @@ export function PromptWorkbench() {
                   disabled={projectLoading || !projectTitle.trim()}
                   className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--text)] hover:bg-white/5 disabled:opacity-40"
                 >
-                  {projectLoading ? "Oluşturuluyor…" : "Yeni proje"}
+                  {projectLoading ? t.creating : t.createProject}
                 </button>
               </div>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -616,6 +744,21 @@ export function PromptWorkbench() {
                   />
                 </div>
                 <div>
+                  <label htmlFor="project-style-preset" className="mb-1 block text-xs text-[var(--muted)]">
+                    Global stil kilidi
+                  </label>
+                  <select
+                    id="project-style-preset"
+                    value={projectStylePreset}
+                    onChange={(e) => setProjectStylePreset(e.target.value as (typeof PROJECT_STYLE_PRESETS)[number])}
+                    className="mb-2 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                  >
+                    {PROJECT_STYLE_PRESETS.map((preset) => (
+                      <option key={preset} value={preset}>
+                        {preset}
+                      </option>
+                    ))}
+                  </select>
                   <label htmlFor="project-style-profile" className="mb-1 block text-xs text-[var(--muted)]">
                     Stil bilgisi (opsiyonel)
                   </label>
@@ -631,7 +774,7 @@ export function PromptWorkbench() {
               </div>
               <div className="mt-2">
                 <label htmlFor="active-project" className="mb-1 block text-xs text-[var(--muted)]">
-                  Aktif proje (devamlılık hafızası)
+                  {t.activeProject}
                 </label>
                 <select
                   id="active-project"
@@ -639,7 +782,7 @@ export function PromptWorkbench() {
                   onChange={(e) => setActiveProjectId(e.target.value)}
                   className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
                 >
-                  <option value="">Proje seçmeden üret (tek seferlik)</option>
+                  <option value="">{t.noProject}</option>
                   {projects.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.title} · {p.sceneCount} sahne
@@ -734,6 +877,25 @@ export function PromptWorkbench() {
                 Video/görsel için preset seçenekleri <span className="text-[var(--text)]">Advanced</span> modda açılır.
               </p>
             ) : null}
+            {!mediaKind ? (
+              <div className="mt-3">
+                <label htmlFor="output-language" className="mb-1 block text-xs text-[var(--muted)]">
+                  {t.outputLanguage}
+                </label>
+                <select
+                  id="output-language"
+                  value={outputLanguage}
+                  onChange={(e) => setOutputLanguage(e.target.value as OutputLanguage)}
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                >
+                  <option value="tr">Turkce (onerilen)</option>
+                  <option value="en">English</option>
+                </select>
+                <p className="mt-1 text-xs text-[var(--muted)]">
+                  Prompt Ingilizce optimize edilir, ancak model yanitini secilen dilde verir.
+                </p>
+              </div>
+            ) : null}
           </div>
 
           {mediaKind && qualityMode === "advanced" ? (
@@ -825,15 +987,15 @@ export function PromptWorkbench() {
             disabled={loading || !intent.trim()}
             className="inline-flex items-center justify-center rounded-lg bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-zinc-900 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {loading ? "Oluşturuluyor…" : "Profesyonel prompt oluştur"}
+            {loading ? t.creating : "Profesyonel prompt oluştur"}
           </button>
         </form>
 
-        {isLoaded && user?.id && activeProject ? (
+        {isLoaded && user?.id && showSceneProjectUI && activeProject ? (
           <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
             <div className="mb-2 flex items-center justify-between gap-2">
               <h3 className="text-sm font-semibold text-[var(--text)]">
-                Sahne akışı · {activeProject.title}
+                {t.projectFlow} · {activeProject.title}
               </h3>
               <span className="text-xs text-[var(--muted)]">{projectScenes.length} sahne</span>
             </div>
@@ -845,8 +1007,26 @@ export function PromptWorkbench() {
               <ol className="space-y-2">
                 {projectScenes.slice(-6).map((scene) => (
                   <li key={scene.id} className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs">
-                    <p className="font-medium text-[var(--text)]">Sahne {scene.sceneNo}</p>
+                    <p className="font-medium text-[var(--text)]">
+                      {t.scene} {scene.sceneNo}
+                    </p>
                     <p className="mt-1 line-clamp-2 text-[var(--muted)]">{scene.userInput}</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => editScene(scene)}
+                        className="rounded-md border border-[var(--border)] px-2 py-1 text-[11px] text-[var(--text)] hover:bg-white/5"
+                      >
+                        {t.edit}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => regenerateScene(scene)}
+                        className="rounded-md border border-[var(--brand-lab)] px-2 py-1 text-[11px] text-[var(--brand-lab)] hover:bg-[var(--brand-lab-dim)]"
+                      >
+                        {t.regenerate}
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ol>
@@ -1059,7 +1239,7 @@ export function PromptWorkbench() {
       <footer className="mt-auto border-t border-[var(--border)] pt-8 text-center">
         <p className="text-sm text-[var(--muted)]">
           <Link href="/hakkimizda" className="text-[var(--text)] hover:underline">
-            Hakkımızda
+            {t.about}
           </Link>
           <span className="mx-2 text-[var(--border)]">·</span>
           <Link href="/gizlilik" className="text-[var(--text)] hover:underline">
@@ -1071,7 +1251,7 @@ export function PromptWorkbench() {
           </Link>
           <span className="mx-2 text-[var(--border)]">·</span>
           <Link href="/pricing" className="text-[var(--accent)] hover:underline">
-            Premium
+            {t.pricing}
           </Link>
         </p>
         <p className="mt-4 text-xs text-[var(--muted)]">
