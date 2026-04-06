@@ -20,7 +20,7 @@ export function WorkbenchErrorCta({ message }: Props) {
   if (!showPremium && !showGroq && !showOpenAiBilling && !showDb && !showAuth) return null;
 
   return (
-    <ul className="mt-3 list-none space-y-2 border-t border-amber-500/25 pt-3 text-xs text-amber-50/95">
+    <ul className="mt-3 list-none space-y-2 border-t border-[var(--warn-border)] pt-3 text-xs text-[var(--warn-fg)]">
       {showPremium ? (
         <li>
           →{" "}
@@ -64,7 +64,7 @@ export function WorkbenchErrorCta({ message }: Props) {
         </li>
       ) : null}
       {showDb ? (
-        <li>→ Geliştirici: proje kökünde <code className="rounded bg-black/30 px-1">npx prisma db push</code></li>
+        <li>→ Geliştirici: proje kökünde <code className="rounded bg-[var(--code-bg)] px-1">npx prisma db push</code></li>
       ) : null}
     </ul>
   );

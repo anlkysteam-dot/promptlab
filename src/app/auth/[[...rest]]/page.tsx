@@ -20,8 +20,9 @@ const clerkAppearance = {
     card: "border border-[var(--border)] bg-[var(--surface)] shadow-none",
     headerTitle: "text-[var(--text)]",
     headerSubtitle: "text-[var(--muted)]",
-    socialButtonsBlockButton: "border-[var(--border)] bg-[#1e2630] text-white hover:bg-[#252d3a]",
-    formButtonPrimary: "bg-[var(--accent)] text-zinc-900 hover:opacity-90",
+    socialButtonsBlockButton:
+      "border-[var(--border)] bg-[var(--bg)] text-[var(--text)] hover:bg-[var(--hover-surface)]",
+    formButtonPrimary: "bg-[var(--accent)] text-[var(--on-accent)] hover:opacity-90",
     footerActionLink: "text-[var(--accent)]",
   },
 } as const;

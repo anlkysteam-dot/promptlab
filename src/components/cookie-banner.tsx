@@ -27,14 +27,14 @@ export function CookieBanner() {
           <button
             type="button"
             onClick={setEssential}
-            className="rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-medium text-[var(--text)] hover:bg-white/5 sm:text-sm"
+            className="rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-medium text-[var(--text)] hover:bg-[var(--hover-surface)] sm:text-sm"
           >
             Yalnızca zorunlu
           </button>
           <button
             type="button"
             onClick={setAnalytics}
-            className="rounded-lg bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-zinc-900 hover:opacity-90 sm:text-sm"
+            className="rounded-lg bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-[var(--on-accent)] hover:opacity-90 sm:text-sm"
           >
             Çerezleri kabul et
           </button>

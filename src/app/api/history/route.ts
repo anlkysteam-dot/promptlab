@@ -1,19 +1,25 @@
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { getAppUser } from "@/lib/app-user";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+const MAX_HISTORY = 500;
+
+export async function GET(req: NextRequest) {
   const appUser = await getAppUser();
   if (!appUser?.id) {
     return NextResponse.json({ error: "Giriş gerekli." }, { status: 401 });
   }
 
+  const raw = req.nextUrl.searchParams.get("limit");
+  const parsed = raw != null ? Number.parseInt(raw, 10) : 20;
+  const take = Number.isFinite(parsed) ? Math.min(MAX_HISTORY, Math.max(1, parsed)) : 20;
+
   const rows = await prisma.promptHistory.findMany({
     where: { userId: appUser.id },
     orderBy: { createdAt: "desc" },
-    take: 20,
+    take,
     select: {
       id: true,
       createdAt: true,

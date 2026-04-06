@@ -173,7 +173,7 @@ export function PricingActions({
 
   if (!paymentProvider) {
     return (
-      <p className="mt-8 rounded-lg border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+      <p className="mt-8 rounded-lg border border-[var(--warn-border)] bg-[var(--warn-bg)] px-4 py-3 text-sm text-[var(--warn-fg)]">
         Ödeme henüz yapılandırılmamış. Sunucuda{" "}
         <code className="text-[var(--text)]">PADDLE_API_KEY</code> +{" "}
         <code className="text-[var(--text)]">PADDLE_PRICE_ID_PREMIUM</code> (Paddle Billing) veya Stripe
@@ -189,7 +189,9 @@ export function PricingActions({
 
   return (
     <div className="mt-8 flex flex-col gap-3">
-      {err ? <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-100">{err}</p> : null}
+      {err ? (
+        <p className="rounded-lg border border-[var(--err-border)] bg-[var(--err-bg)] px-3 py-2 text-sm text-[var(--err-fg)]">{err}</p>
+      ) : null}
 
       {isPremium ? (
         <p className="text-sm text-[var(--muted)]">
@@ -202,7 +204,7 @@ export function PricingActions({
           type="button"
           onClick={() => void goPaddleCheckout()}
           disabled={loading !== null}
-          className="inline-flex items-center justify-center rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-zinc-900 hover:opacity-90 disabled:opacity-40"
+          className="inline-flex items-center justify-center rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-[var(--on-accent)] hover:opacity-90 disabled:opacity-40"
         >
           {loading === "checkout" ? "Yönlendiriliyor…" : checkoutLabel}
         </button>
@@ -213,7 +215,7 @@ export function PricingActions({
           type="button"
           onClick={() => void goStripeCheckout()}
           disabled={loading !== null}
-          className="inline-flex items-center justify-center rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-zinc-900 hover:opacity-90 disabled:opacity-40"
+          className="inline-flex items-center justify-center rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-[var(--on-accent)] hover:opacity-90 disabled:opacity-40"
         >
           {loading === "checkout" ? "Yönlendiriliyor…" : checkoutLabel}
         </button>
@@ -224,7 +226,7 @@ export function PricingActions({
           type="button"
           onClick={() => void goPaddlePortal()}
           disabled={loading !== null}
-          className="inline-flex items-center justify-center rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm font-medium text-[var(--text)] hover:bg-white/5 disabled:opacity-40"
+          className="inline-flex items-center justify-center rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm font-medium text-[var(--text)] hover:bg-[var(--hover-surface)] disabled:opacity-40"
         >
           {loading === "portal" ? "Açılıyor…" : portalLabel}
         </button>
@@ -235,7 +237,7 @@ export function PricingActions({
           type="button"
           onClick={() => void goStripePortal()}
           disabled={loading !== null}
-          className="inline-flex items-center justify-center rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm font-medium text-[var(--text)] hover:bg-white/5 disabled:opacity-40"
+          className="inline-flex items-center justify-center rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm font-medium text-[var(--text)] hover:bg-[var(--hover-surface)] disabled:opacity-40"
         >
           {loading === "portal" ? "Açılıyor…" : portalLabel}
         </button>

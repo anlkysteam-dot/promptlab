@@ -12,7 +12,7 @@ function Inner() {
   const node = useMemo(() => {
     if (success || paddleOk) {
       return (
-        <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+        <div className="rounded-lg border border-[var(--success-border)] bg-[var(--success-bg)] px-4 py-3 text-sm text-[var(--success-fg)]">
           Ödeme tamamlandı. Premium birkaç saniye içinde hesabına yansır; yansımazsa sayfayı yenile.
         </div>
       );

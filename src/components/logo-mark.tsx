@@ -13,8 +13,8 @@ export function LogoMark({ className = "h-10 w-10" }: { className?: string }) {
         fontWeight="500"
         letterSpacing="-0.06em"
       >
-        <tspan fill="#ffffff">p</tspan>
-        <tspan fill="#a78bfa" fontWeight="700">
+        <tspan fill="var(--text)">p</tspan>
+        <tspan fill="var(--brand-lab)" fontWeight="700">
           L
         </tspan>
       </text>

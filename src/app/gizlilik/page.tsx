@@ -23,7 +23,7 @@ export default function PrivacyPage() {
       <p className="mt-2 text-sm text-[var(--muted)]">
         6698 sayılı Kişisel Verilerin Korunması Kanunu (&quot;KVKK&quot;) uyarınca veri sorumlusu sıfatıyla bilgilendirme.
       </p>
-      <p className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-100/95">
+      <p className="mt-4 rounded-lg border border-[var(--warn-border)] bg-[var(--warn-bg)] p-3 text-xs leading-relaxed text-[var(--warn-fg)]">
         Bu metin genel bilgilendirme içindir. Şirket unvanı, adres ve resmi temsilci bilgileri yayına almadan önce
         güncellenmeli; nihai hukuki uygunluk için bir hukuk müşavirinden destek almanız önerilir.
       </p>

@@ -52,31 +52,31 @@ export default async function PricingPage() {
             <p className="text-sm font-medium text-[var(--text)]">Premium Plan</p>
             <p className="mt-1 text-sm text-[var(--muted)]">Sınırsız üretim ve kesintisiz kullanım</p>
           </div>
-          <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-200">
+          <span className="rounded-full border border-[var(--success-border)] bg-[var(--success-bg)] px-3 py-1 text-xs font-medium text-[var(--success-fg)]">
             En popüler
           </span>
         </div>
 
         <div className="mt-5 grid gap-3 md:grid-cols-2">
-          <div className="rounded-xl border border-[var(--border)] bg-black/10 p-4">
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--subtle-fill)] p-4">
             <p className="text-sm font-medium text-[var(--text)]">Sınırsız günlük kullanım</p>
             <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">
               Ücretsiz paketteki günlük dönüşüm sınırı kaldırılır.
             </p>
           </div>
-          <div className="rounded-xl border border-[var(--border)] bg-black/10 p-4">
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--subtle-fill)] p-4">
             <p className="text-sm font-medium text-[var(--text)]">Tek tıkla yönetim</p>
             <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">
               Abonelik durumunu ve ödeme bilgilerini panelden kolayca yönetirsin.
             </p>
           </div>
-          <div className="rounded-xl border border-[var(--border)] bg-black/10 p-4">
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--subtle-fill)] p-4">
             <p className="text-sm font-medium text-[var(--text)]">Anında aktive olur</p>
             <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">
               Ödeme tamamlanınca premium hesabına otomatik yansır.
             </p>
           </div>
-          <div className="rounded-xl border border-[var(--border)] bg-black/10 p-4">
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--subtle-fill)] p-4">
             <p className="text-sm font-medium text-[var(--text)]">Güvenli ödeme altyapısı</p>
             <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">
               Ödemeler Paddle / Stripe üzerinden, güvenli ve standartlara uygun yürütülür.

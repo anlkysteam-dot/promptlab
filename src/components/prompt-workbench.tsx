@@ -1,6 +1,6 @@
 "use client";
 
-import { useClerk, useUser } from "@clerk/nextjs";
+import { useUser } from "@clerk/nextjs";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { BeforeAfterExamples } from "@/components/before-after-examples";
@@ -8,19 +8,16 @@ import { LogoMark } from "@/components/logo-mark";
 import { WorkbenchErrorCta } from "@/components/workbench-error-cta";
 import { getEstimatedWeeklyPromptCount } from "@/lib/beta-stats";
 import { buildIntentForApi, TONE_LABELS } from "@/lib/workbench-compose-intent";
-import {
-  clearRecentPrompts as clearRecentStorage,
-  pushRecentPrompt,
-  readRecentPrompts,
-  type RecentPromptEntry,
-} from "@/lib/workbench-recent";
+import { consumeRestoreEntry, pushRecentPrompt } from "@/lib/workbench-recent";
 import { getWorkbenchTargetHint } from "@/lib/workbench-target-hints";
 import { getWorkbenchUsageNote } from "@/lib/workbench-usage-notes";
 import type { MediaPreset, PromptQualityMode } from "@/lib/prompt-quality";
 import { QUICK_STARTERS, type QuickStarterCategory } from "@/lib/quick-starters";
 import { AI_TARGETS, type AiTargetId } from "@/lib/targets";
 import type { LabFlavor, LabFormat } from "@/lib/lab-presets";
+import { ThemePreferenceSelect } from "@/components/theme-preference-select";
 import { WorkbenchOnboarding } from "@/components/workbench-onboarding";
+import { WorkbenchShortcutsModal } from "@/components/workbench-shortcuts";
 
 const CHATGPT_URL = "https://chatgpt.com";
 const VIDEO_TARGETS: AiTargetId[] = ["runway", "veo", "sora", "kling", "pika"];
@@ -139,11 +136,11 @@ function ResultSkeleton() {
       className="animate-pulse space-y-3 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4"
       aria-hidden="true"
     >
-      <div className="h-3 max-w-full rounded bg-zinc-700/80" style={{ width: "92%" }} />
-      <div className="h-3 w-full rounded bg-zinc-700/60" />
-      <div className="h-3 w-4/5 rounded bg-zinc-700/60" />
-      <div className="h-3 w-full rounded bg-zinc-700/50" />
-      <div className="h-3 w-3/5 rounded bg-zinc-700/50" />
+      <div className="h-3 max-w-full rounded bg-[var(--muted)]/40" style={{ width: "92%" }} />
+      <div className="h-3 w-full rounded bg-[var(--muted)]/30" />
+      <div className="h-3 w-4/5 rounded bg-[var(--muted)]/30" />
+      <div className="h-3 w-full rounded bg-[var(--muted)]/25" />
+      <div className="h-3 w-3/5 rounded bg-[var(--muted)]/25" />
     </div>
   );
 }
@@ -231,7 +228,6 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
   const tx = (tr: string, en: string) => (isEn ? en : tr);
   const stylePresets = isEn ? PROJECT_STYLE_PRESETS_EN : PROJECT_STYLE_PRESETS;
   const { user, isLoaded } = useUser();
-  const { signOut } = useClerk();
   const [intent, setIntent] = useState("");
   const [topic, setTopic] = useState("");
   const [tone, setTone] = useState("");
@@ -247,10 +243,8 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
   const [qualityMode, setQualityMode] = useState<PromptQualityMode>("normal");
   const [outputLanguage, setOutputLanguage] = useState<OutputLanguage>("tr");
   const [mediaPreset, setMediaPreset] = useState<MediaPreset>("none");
-  const [recentOpen, setRecentOpen] = useState(false);
-  const [recentList, setRecentList] = useState<RecentPromptEntry[]>([]);
-  const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
   const [starterMemory, setStarterMemory] = useState<Record<string, number>>({});
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [starterCategory, setStarterCategory] = useState<StarterCategory>("all");
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string>("");
@@ -326,25 +320,38 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
     }
   }, []);
 
-  const loadRecent = useCallback(async () => {
-    if (isLoaded && user?.id) {
-      try {
-        const r = await fetch("/api/history", { method: "GET", cache: "no-store" });
-        if (r.ok) {
-          const j = (await r.json()) as { items?: RecentPromptEntry[] };
-          setRecentList(Array.isArray(j.items) ? j.items : []);
-          return;
-        }
-      } catch {
-        // Sunucu geçmişi okunamazsa local fallback.
-      }
-    }
-    setRecentList(readRecentPrompts());
-  }, [isLoaded, user?.id]);
+  useEffect(() => {
+    const entry = consumeRestoreEntry();
+    if (!entry) return;
+    setIntent(entry.intent);
+    setTarget(entry.target);
+    setExpertMode(entry.target !== "universal");
+    setTopic(entry.topic ?? "");
+    setTone(entry.tone ?? "");
+    setAudience(entry.audience ?? "");
+    setResult(entry.prompt);
+    setResultProvider("openai");
+    setError(null);
+  }, []);
 
   useEffect(() => {
-    void loadRecent();
-  }, [loadRecent]);
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setShortcutsOpen(false);
+        return;
+      }
+      const el = e.target as HTMLElement;
+      const inField = el.closest("input, textarea, select, [contenteditable=true]");
+      if (inField) return;
+      if (e.key === "?" || (e.shiftKey && e.key === "/")) {
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        e.preventDefault();
+        setShortcutsOpen((o) => !o);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   useEffect(() => {
     void loadProjects();
@@ -363,9 +370,11 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
   useEffect(() => {
     if (qualityMode !== "advanced") return;
     if (!mediaKind) return;
-    if (mediaPreset !== "none") return;
-    setMediaPreset(defaultMediaPresetForTarget(effectiveTarget));
-  }, [qualityMode, mediaKind, mediaPreset, effectiveTarget]);
+    setMediaPreset((prev) => {
+      if (prev !== "none") return prev;
+      return defaultMediaPresetForTarget(effectiveTarget);
+    });
+  }, [qualityMode, mediaKind, effectiveTarget]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -426,7 +435,6 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           audience,
         });
       }
-      await loadRecent();
       if (user?.id) {
         await loadProjects();
         if (activeProjectId) await loadProjectScenes(activeProjectId);
@@ -525,70 +533,6 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
     setError(null);
   }
 
-  function applyRecent(entry: RecentPromptEntry) {
-    setIntent(entry.intent);
-    setTarget(entry.target);
-    setExpertMode(entry.target !== "universal");
-    setTopic(entry.topic ?? "");
-    setTone(entry.tone ?? "");
-    setAudience(entry.audience ?? "");
-    setResult(entry.prompt);
-    setResultProvider("openai");
-    setError(null);
-    setRecentOpen(true);
-  }
-
-  async function handleClearRecent() {
-    if (isLoaded && user?.id) {
-      try {
-        await fetch("/api/history", { method: "DELETE" });
-      } catch {
-        // no-op
-      }
-      setRecentList([]);
-      return;
-    }
-    clearRecentStorage();
-    setRecentList([]);
-  }
-
-  async function toggleFavorite(entryId: string) {
-    if (!(isLoaded && user?.id)) return;
-    try {
-      const r = await fetch(`/api/history/${entryId}/favorite`, { method: "PATCH" });
-      if (!r.ok) return;
-      const j = (await r.json()) as { id?: string; isFavorite?: boolean };
-      if (!j.id || typeof j.isFavorite !== "boolean") return;
-      setRecentList((prev) =>
-        prev.map((item) => (item.id === j.id ? { ...item, isFavorite: j.isFavorite } : item)),
-      );
-    } catch {
-      // no-op
-    }
-  }
-
-  async function toggleShareToFeed(entryId: string) {
-    if (!(isLoaded && user?.id)) return;
-    const entry = recentList.find((e) => e.id === entryId);
-    if (!entry) return;
-    const next = !entry.shareToFeed;
-    try {
-      const r = await fetch(`/api/history/${entryId}/share`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shareToFeed: next }),
-      });
-      if (!r.ok) return;
-      const j = (await r.json()) as { id?: string; shareToFeed?: boolean };
-      if (!j.id || typeof j.shareToFeed !== "boolean") return;
-      setRecentList((prev) =>
-        prev.map((item) => (item.id === j.id ? { ...item, shareToFeed: j.shareToFeed } : item)),
-      );
-    } catch {
-      // no-op
-    }
-  }
-
   function onTextareaKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
       e.preventDefault();
@@ -597,10 +541,6 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
     }
   }
 
-  const filteredRecent = useMemo(
-    () => (showOnlyFavorites ? recentList.filter((x) => x.isFavorite) : recentList),
-    [recentList, showOnlyFavorites],
-  );
   const activeProject = useMemo(
     () => projects.find((p) => p.id === activeProjectId) ?? null,
     [projects, activeProjectId],
@@ -623,10 +563,10 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           <div className="flex flex-wrap items-center gap-3">
             <LogoMark className="h-10 w-10 shrink-0 sm:h-11 sm:w-11" />
             <h1 className="flex flex-wrap items-baseline gap-2 text-3xl tracking-tight sm:text-4xl">
-              <span className="font-normal text-white">Prompt</span>
+              <span className="font-normal text-[var(--text)]">Prompt</span>
               <span className="font-bold text-[var(--brand-lab)]">Lab</span>
               <span
-                className="rounded-full border border-amber-400/50 bg-amber-400/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-200"
+                className="rounded-full border border-[var(--warn-border)] bg-[var(--warn-bg)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--warn-fg)]"
                 title={tx("Erken erişim — geri bildirimine değer veriyoruz", "Early access — your feedback matters")}
               >
                 Beta
@@ -645,7 +585,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
             )}
           </p>
         </div>
-        <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
+        <div id="tour-profile" className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
           {!isLoaded ? (
             <span className="text-sm text-[var(--muted)]">Oturum…</span>
           ) : user ? (
@@ -653,29 +593,40 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
               <span className="text-sm text-[var(--muted)]">
                 {user.primaryEmailAddress?.emailAddress ?? user.username ?? user.firstName ?? "Hesap"}
               </span>
-              <button
-                type="button"
-                onClick={() => signOut({ redirectUrl: "/" })}
-                className="rounded-md border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text)] hover:bg-white/5"
+              <Link
+                href={isEn ? "/en/profile" : "/tr/profil"}
+                className="rounded-md border border-[var(--border)] px-3 py-1.5 text-sm font-medium text-[var(--text)] hover:bg-[var(--hover-surface)]"
               >
-                {tx("Çıkış", "Sign out")}
-              </button>
+                {tx("Profilim", "My profile")}
+              </Link>
             </div>
           ) : (
             <Link
               href="/auth"
-              className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-center text-sm font-medium text-[var(--text)] hover:bg-white/5 sm:text-right"
+              className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-center text-sm font-medium text-[var(--text)] hover:bg-[var(--hover-surface)] sm:text-right"
             >
               {t.login}
             </Link>
           )}
-          <div className="flex flex-wrap justify-end gap-x-3 gap-y-1 text-sm">
+          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-sm">
+            <ThemePreferenceSelect locale={locale} compact />
             <Link href="/pricing" className="text-[var(--accent)] hover:underline">
               {t.pricing}
+            </Link>
+            <Link href="/discover" className="text-[var(--muted)] hover:text-[var(--text)] hover:underline">
+              {tx("Keşfet", "Discover")}
             </Link>
             <Link href="/hakkimizda" className="text-[var(--muted)] hover:text-[var(--text)] hover:underline">
               {t.about}
             </Link>
+            <button
+              type="button"
+              onClick={() => setShortcutsOpen(true)}
+              className="rounded border border-[var(--border)] px-2 py-0.5 font-mono text-xs text-[var(--muted)] hover:text-[var(--text)]"
+              title={tx("Klavye kısayolları (?)", "Keyboard shortcuts (?)")}
+            >
+              ?
+            </button>
             <Link href="/tr" className="text-[var(--muted)] hover:text-[var(--text)] hover:underline">
               TR
             </Link>
@@ -900,7 +851,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                   type="button"
                   onClick={() => void createProject()}
                   disabled={projectLoading || !projectTitle.trim()}
-                  className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--text)] hover:bg-white/5 disabled:opacity-40"
+                  className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--hover-surface)] disabled:opacity-40"
                 >
                   {projectLoading ? t.creating : t.createProject}
                 </button>
@@ -1035,7 +986,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                 onClick={() => setQualityMode("normal")}
                 className={`rounded-md px-2.5 py-1.5 font-medium transition ${
                   qualityMode === "normal"
-                    ? "bg-[var(--accent)] text-zinc-900"
+                    ? "bg-[var(--accent)] text-[var(--on-accent)]"
                     : "text-[var(--muted)] hover:text-[var(--text)]"
                 }`}
               >
@@ -1046,7 +997,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                 onClick={() => setQualityMode("advanced")}
                 className={`rounded-md px-2.5 py-1.5 font-medium transition ${
                   qualityMode === "advanced"
-                    ? "bg-[var(--accent)] text-zinc-900"
+                    ? "bg-[var(--accent)] text-[var(--on-accent)]"
                     : "text-[var(--muted)] hover:text-[var(--text)]"
                 }`}
               >
@@ -1174,7 +1125,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           </div>
 
           {error ? (
-            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+            <div className="rounded-lg border border-[var(--warn-border)] bg-[var(--warn-bg)] px-3 py-2 text-sm text-[var(--warn-fg)]">
               <p>{error}</p>
               <WorkbenchErrorCta message={error} />
             </div>
@@ -1184,7 +1135,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
             id="tour-submit"
             type="submit"
             disabled={loading || !intent.trim()}
-            className="inline-flex items-center justify-center rounded-lg bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-zinc-900 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex items-center justify-center rounded-lg bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-[var(--on-accent)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {loading ? t.creating : tx("Profesyonel prompt oluştur", "Generate professional prompt")}
           </button>
@@ -1216,7 +1167,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                       <button
                         type="button"
                         onClick={() => editScene(scene)}
-                        className="rounded-md border border-[var(--border)] px-2 py-1 text-[11px] text-[var(--text)] hover:bg-white/5"
+                        className="rounded-md border border-[var(--border)] px-2 py-1 text-[11px] text-[var(--text)] hover:bg-[var(--hover-surface)]"
                       >
                         {t.edit}
                       </button>
@@ -1246,108 +1197,6 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           </section>
         ) : null}
 
-        <details
-          className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3"
-          open={recentOpen}
-          onToggle={(e) => setRecentOpen((e.target as HTMLDetailsElement).open)}
-        >
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium text-[var(--text)] [&::-webkit-details-marker]:hidden">
-            <span>
-              {tx("Son üretimler", "Recent generations")}{" "}
-              <span className="font-normal text-[var(--muted)]">
-                {isLoaded && user?.id ? tx("(hesabınla senkron)", "(synced with your account)") : tx("(yalnızca bu cihaz)", "(this device only)")}
-              </span>
-            </span>
-            {recentList.length > 0 ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleClearRecent();
-                }}
-                className="rounded-md border border-[var(--border)] px-2 py-1 text-xs font-normal text-[var(--muted)] hover:border-red-500/40 hover:text-red-200"
-              >
-                {tx("Listeyi temizle", "Clear list")}
-              </button>
-            ) : null}
-          </summary>
-          <div className="mt-3 flex items-center justify-between">
-            <p className="text-xs text-[var(--muted)]">
-              {isLoaded && user?.id
-                ? tx("Favorilere ekleyip hızlıca yeniden kullanabilirsin.", "Add to favorites and reuse quickly.")
-                : tx("Yerel geçmiş bu tarayıcıda tutulur.", "Local history is stored in this browser.")}
-            </p>
-            {isLoaded && user?.id ? (
-              <button
-                type="button"
-                onClick={() => setShowOnlyFavorites((v) => !v)}
-                className={`rounded-md border px-2 py-1 text-xs ${
-                  showOnlyFavorites
-                    ? "border-[var(--brand-lab)] bg-[var(--brand-lab-dim)] text-[var(--brand-lab)]"
-                    : "border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]"
-                }`}
-              >
-                {showOnlyFavorites ? tx("Tüm kayıtlar", "All records") : tx("Sadece favoriler", "Only favorites")}
-              </button>
-            ) : null}
-          </div>
-          {filteredRecent.length === 0 ? (
-            <p className="mt-3 text-xs text-[var(--muted)]">
-              {tx("Henüz kayıtlı üretim yok. Başarılı bir oluşturmadan sonra burada listelenir.", "No saved generations yet. Successful outputs appear here.")}
-            </p>
-          ) : (
-            <ul className="mt-3 space-y-2">
-              {filteredRecent.map((entry) => (
-                <li key={entry.id} className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs">
-                  <div className="flex items-start justify-between gap-2">
-                    <button
-                      type="button"
-                      onClick={() => applyRecent(entry)}
-                      className="min-w-0 flex-1 text-left text-[var(--text)] transition hover:text-white"
-                    >
-                      <span className="block font-medium text-[var(--text)] line-clamp-1">{entry.intent || tx("(boş)", "(empty)")}</span>
-                      <span className="mt-0.5 block text-[var(--muted)]">
-                        {AI_TARGETS.find((t) => t.id === entry.target)?.label ?? entry.target} ·{" "}
-                        {new Date(entry.at).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" })}
-                      </span>
-                    </button>
-                    {isLoaded && user?.id ? (
-                      <div className="flex shrink-0 flex-col gap-1">
-                        <button
-                          type="button"
-                          onClick={() => void toggleFavorite(entry.id)}
-                          className={`rounded-md border px-2 py-1 text-[11px] ${
-                            entry.isFavorite
-                              ? "border-amber-400/50 bg-amber-400/10 text-amber-200"
-                              : "border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]"
-                          }`}
-                          aria-label={entry.isFavorite ? tx("Favoriden çıkar", "Remove favorite") : tx("Favoriye ekle", "Add favorite")}
-                          title={entry.isFavorite ? tx("Favoriden çıkar", "Remove favorite") : tx("Favoriye ekle", "Add favorite")}
-                        >
-                          {entry.isFavorite ? tx("Yildizli", "Starred") : tx("Yildiz", "Star")}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void toggleShareToFeed(entry.id)}
-                          className={`rounded-md border px-2 py-1 text-[11px] ${
-                            entry.shareToFeed
-                              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
-                              : "border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]"
-                          }`}
-                          title={tx("Keşfet vitrininde göster", "Show on Discover feed")}
-                        >
-                          {entry.shareToFeed ? tx("Vitrinde", "In feed") : tx("Vitrin", "Share")}
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </details>
-
         <section
           className="flex min-h-[280px] flex-col gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:min-h-[320px] sm:p-6"
           aria-busy={loading}
@@ -1362,7 +1211,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                     onClick={() => setOutputMode("prompt-only")}
                     className={`rounded-md px-2.5 py-1.5 font-medium transition ${
                       outputMode === "prompt-only"
-                        ? "bg-[var(--accent)] text-zinc-900"
+                        ? "bg-[var(--accent)] text-[var(--on-accent)]"
                         : "text-[var(--muted)] hover:text-[var(--text)]"
                     }`}
                   >
@@ -1373,7 +1222,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                     onClick={() => setOutputMode("with-tip")}
                     className={`rounded-md px-2.5 py-1.5 font-medium transition ${
                       outputMode === "with-tip"
-                        ? "bg-[var(--accent)] text-zinc-900"
+                        ? "bg-[var(--accent)] text-[var(--on-accent)]"
                         : "text-[var(--muted)] hover:text-[var(--text)]"
                     }`}
                   >
@@ -1408,13 +1257,13 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           ) : result ? (
             <div className="flex min-h-0 flex-1 flex-col gap-2">
               {resultProvider === "mock" ? (
-                <p className="rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                <p className="rounded-lg border border-[var(--warn-border)] bg-[var(--warn-bg)] px-3 py-2 text-xs text-[var(--warn-fg)]">
                   <span className="font-semibold">{tx("Demo modu:", "Demo mode:")}</span>{" "}
                   {tx("Canlı yapay zeka çağrılmadı", "No live AI call was made")} (
-                  <code className="rounded bg-black/30 px-1">PROMPTLAB_GENERATE_MODE=mock</code>).{" "}
+                  <code className="rounded bg-[var(--code-bg)] px-1">PROMPTLAB_GENERATE_MODE=mock</code>).{" "}
                   {tx("Gerçek çıktı için .env içinde", "For real outputs, set")}{" "}
-                  <code className="rounded bg-black/30 px-1">openai</code> {tx("veya", "or")}{" "}
-                  <code className="rounded bg-black/30 px-1">groq</code> {tx("kullanın.", "in .env.")}
+                  <code className="rounded bg-[var(--code-bg)] px-1">openai</code> {tx("veya", "or")}{" "}
+                  <code className="rounded bg-[var(--code-bg)] px-1">groq</code> {tx("kullanın.", "in .env.")}
                 </p>
               ) : null}
               <pre
@@ -1476,7 +1325,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           </Link>
           <span className="mx-2 text-[var(--border)]">·</span>
           <Link href="/discover" className="text-[var(--muted)] hover:text-[var(--text)] hover:underline">
-            Keşfet
+            {tx("Keşfet", "Discover")}
           </Link>
         </p>
         <p className="mt-4 text-xs text-[var(--muted)]">
@@ -1489,7 +1338,8 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           .
         </p>
       </footer>
-      <WorkbenchOnboarding />
+      <WorkbenchShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} locale={locale} />
+      <WorkbenchOnboarding locale={locale} />
     </div>
   );
 }

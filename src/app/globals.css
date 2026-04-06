@@ -10,10 +10,57 @@
   --accent-dim: #2dd4bf33;
   --brand-lab: #a78bfa;
   --brand-lab-dim: #a78bfa33;
+  /* Tema ile uyumlu yardımcılar (sabit siyah/beyaz yerine) */
+  --on-accent: #0f172a;
+  --hover-surface: rgba(255, 255, 255, 0.05);
+  --code-bg: rgba(0, 0, 0, 0.28);
+  --scrim: rgba(0, 0, 0, 0.55);
+  --subtle-fill: rgba(255, 255, 255, 0.06);
+  --skeleton: rgba(139, 156, 179, 0.35);
+  --warn-fg: #fef3c7;
+  --warn-border: rgba(245, 158, 11, 0.35);
+  --warn-bg: rgba(245, 158, 11, 0.1);
+  --err-fg: #fecaca;
+  --err-border: rgba(239, 68, 68, 0.4);
+  --err-bg: rgba(239, 68, 68, 0.1);
+  --success-fg: #a7f3d0;
+  --success-border: rgba(16, 185, 129, 0.4);
+  --success-bg: rgba(16, 185, 129, 0.1);
+}
+
+:root[data-theme="light"] {
+  --bg: #eef2f7;
+  --surface: #ffffff;
+  --border: #c9d4e3;
+  --text: #0f172a;
+  --muted: #5c6b80;
+  --accent: #0d9488;
+  --accent-dim: #0d948833;
+  --brand-lab: #7c3aed;
+  --brand-lab-dim: #7c3aed22;
+  --on-accent: #0f172a;
+  --hover-surface: rgba(15, 23, 42, 0.07);
+  --code-bg: rgba(15, 23, 42, 0.08);
+  --scrim: rgba(15, 23, 42, 0.45);
+  --subtle-fill: rgba(15, 23, 42, 0.045);
+  --skeleton: rgba(92, 107, 128, 0.22);
+  --warn-fg: #92400e;
+  --warn-border: rgba(180, 83, 9, 0.35);
+  --warn-bg: rgba(251, 191, 36, 0.15);
+  --err-fg: #991b1b;
+  --err-border: rgba(220, 38, 38, 0.35);
+  --err-bg: rgba(239, 68, 68, 0.08);
+  --success-fg: #047857;
+  --success-border: rgba(5, 150, 105, 0.4);
+  --success-bg: rgba(16, 185, 129, 0.12);
 }
 
 html {
   color-scheme: dark;
+}
+
+html[data-theme="light"] {
+  color-scheme: light;
 }
 
 .sr-only {
@@ -33,4 +80,9 @@ body {
     radial-gradient(900px 500px at 100% 0%, #132028 0%, transparent 50%), var(--bg);
   color: var(--text);
   min-height: 100vh;
+}
+
+html[data-theme="light"] body {
+  background: radial-gradient(1200px 600px at 20% -10%, #dbeafe 0%, transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, #e0e7ff 0%, transparent 50%), var(--bg);
 }
