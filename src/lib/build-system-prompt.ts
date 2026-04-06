@@ -13,6 +13,8 @@ const TARGET_HINTS: Record<AiTargetId, string> = {
     "Optimize for coding assistants: specify language/stack, file context, acceptance criteria, and code style.",
   midjourney:
     "Optimize for Midjourney: vivid, comma-separated visual description, style, lighting, aspect hints; no chatty prose.",
+  stable_diffusion:
+    "Optimize for Stable Diffusion / SDXL: tag-style descriptors, weights when useful, clear subject/background separation, negative prompt section when relevant.",
   dalle:
     "Optimize for image models: clear scene, subjects, style, composition; avoid policy-violating requests.",
   runway:

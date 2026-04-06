@@ -8,6 +8,7 @@ export const AI_TARGETS = [
   { id: "gemini", label: "Google Gemini" },
   { id: "copilot", label: "GitHub Copilot" },
   { id: "midjourney", label: "Midjourney" },
+  { id: "stable_diffusion", label: "Stable Diffusion / SDXL" },
   { id: "dalle", label: "DALL·E / görsel" },
   { id: "runway", label: "Runway (video)" },
   { id: "veo", label: "Google Veo (video)" },

@@ -19,6 +19,7 @@ import { buildMockPrompt } from "@/lib/mock-prompt";
 
 import { resolvePremiumForUser } from "@/lib/premium";
 import { buildContinuityContextWithProjectProfiles, buildContinuitySnapshot } from "@/lib/continuity-context";
+import { buildLabPresetBlock, type LabFlavor, type LabFormat } from "@/lib/lab-presets";
 import {
   checklistInstruction,
   inferPromptTemplate,
@@ -48,7 +49,16 @@ import {
 
 
 const validTargetIds = new Set<string>(AI_TARGETS.map((t) => t.id));
-const MEDIA_TARGET_IDS = new Set<AiTargetId>(["midjourney", "dalle", "runway", "veo", "sora", "kling", "pika"]);
+const MEDIA_TARGET_IDS = new Set<AiTargetId>([
+  "midjourney",
+  "dalle",
+  "stable_diffusion",
+  "runway",
+  "veo",
+  "sora",
+  "kling",
+  "pika",
+]);
 
 function outputLanguageInstruction(language: "tr" | "en", target: AiTargetId): string {
   if (MEDIA_TARGET_IDS.has(target)) {
@@ -145,6 +155,15 @@ export async function POST(req: Request) {
       : "none"
   ) as MediaPreset;
   const projectId = String((body as { projectId?: string })?.projectId ?? "").trim();
+  const labFormatRaw = String((body as { labFormat?: string })?.labFormat ?? "");
+  const labFormat = (["", "16:9", "9:16", "1:1"].includes(labFormatRaw) ? labFormatRaw : "") as LabFormat;
+  const labFlavorRaw = String((body as { labFlavor?: string })?.labFlavor ?? "none");
+  const labFlavor = (
+    ["none", "midjourney", "sora", "stable_diffusion"].includes(labFlavorRaw) ? labFlavorRaw : "none"
+  ) as LabFlavor;
+  const negativePrompt = String((body as { negativePrompt?: string })?.negativePrompt ?? "")
+    .trim()
+    .slice(0, 600);
 
 
 
@@ -161,6 +180,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Geçerli bir hedef seçin." }, { status: 400 });
 
   }
+
+  const labPresetBlock = buildLabPresetBlock({
+    format: labFormat,
+    negativePrompt,
+    flavor: labFlavor,
+    target,
+  });
 
 
 
@@ -421,6 +447,7 @@ export async function POST(req: Request) {
       `project_target=${activeProject?.target ?? "(none)"}`,
       activeProject ? `project_scene_count=${activeProject.scenes.length}` : "project_scene_count=0",
       continuityContext ? "\n[CONTINUITY_CONTEXT]\n" + continuityContext : "",
+      labPresetBlock ? "\n\n" + labPresetBlock : "",
     ].join("\n");
 
     try {

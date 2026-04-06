@@ -14,6 +14,8 @@ const HINTS: Record<AiTargetId, string> = {
     "Dil, çatı (ör. Next.js), dosya/bağlam, kabul kriterleri ve kod stilini yaz; mümkünse örnek imza veya hata mesajı ekle.",
   midjourney:
     "Sahne, ışık, stil ve kompozisyonu virgülle ayırarak yaz; sohbet dili yerine görsel betimlemeye odaklan.",
+  stable_diffusion:
+    "Konu, stil, ışık ve olumsuz istemleri net yaz; SDXL için etiket tarzı, ağırlık ve kompozisyon ipuçları işe yarar.",
   dalle:
     "Konu, ortam, sanat stili ve kadrajı net yaz; politikaya duyarlı ifadelerden kaçın.",
   runway:

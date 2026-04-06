@@ -21,6 +21,7 @@ export async function GET() {
       target: true,
       prompt: true,
       isFavorite: true,
+      shareToFeed: true,
       topic: true,
       tone: true,
       audience: true,
@@ -38,6 +39,7 @@ export async function GET() {
       topic: r.topic,
       tone: r.tone,
       audience: r.audience,
+      shareToFeed: r.shareToFeed,
     })),
   });
 }

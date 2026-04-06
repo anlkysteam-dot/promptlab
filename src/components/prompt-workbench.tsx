@@ -19,10 +19,12 @@ import { getWorkbenchUsageNote } from "@/lib/workbench-usage-notes";
 import type { MediaPreset, PromptQualityMode } from "@/lib/prompt-quality";
 import { QUICK_STARTERS, type QuickStarterCategory } from "@/lib/quick-starters";
 import { AI_TARGETS, type AiTargetId } from "@/lib/targets";
+import type { LabFlavor, LabFormat } from "@/lib/lab-presets";
+import { WorkbenchOnboarding } from "@/components/workbench-onboarding";
 
 const CHATGPT_URL = "https://chatgpt.com";
 const VIDEO_TARGETS: AiTargetId[] = ["runway", "veo", "sora", "kling", "pika"];
-const IMAGE_TARGETS: AiTargetId[] = ["midjourney", "dalle"];
+const IMAGE_TARGETS: AiTargetId[] = ["midjourney", "dalle", "stable_diffusion"];
 const MEDIA_PRESET_OPTIONS: Array<{ value: MediaPreset; label: string; kind: "video" | "image" | "all" }> = [
   { value: "none", label: "Yok (genel medya kalitesi)", kind: "all" },
   { value: "video_ad_vertical", label: "Video: Dikey reklam (9:16)", kind: "video" },
@@ -34,6 +36,17 @@ const MEDIA_PRESET_OPTIONS: Array<{ value: MediaPreset; label: string; kind: "vi
   { value: "image_concept_art", label: "Görsel: Concept art", kind: "image" },
   { value: "image_logo_direction", label: "Görsel: Logo yönü", kind: "image" },
 ];
+const MEDIA_PRESET_LABELS_EN: Record<MediaPreset, string> = {
+  none: "None (general media quality)",
+  video_ad_vertical: "Video: Vertical ad (9:16)",
+  video_cinematic_short: "Video: Cinematic short film",
+  video_product_demo: "Video: Product demo",
+  video_storyboard: "Video: Storyboard format",
+  image_product_packshot: "Image: Product packshot",
+  image_social_ad: "Image: Social media ad",
+  image_concept_art: "Image: Concept art",
+  image_logo_direction: "Image: Logo direction",
+};
 type StarterCategory = "all" | QuickStarterCategory;
 
 const STARTER_CATEGORY_LABELS: Record<StarterCategory, string> = {
@@ -45,6 +58,29 @@ const STARTER_CATEGORY_LABELS: Record<StarterCategory, string> = {
   video: "🎬 Video",
   image: "🖼️ Görsel",
 };
+const STARTER_CATEGORY_LABELS_EN: Record<StarterCategory, string> = {
+  all: "✨ All",
+  content: "📝 Content",
+  email: "📧 Email",
+  coding: "💻 Code",
+  presentation: "📊 Presentation",
+  video: "🎬 Video",
+  image: "🖼️ Image",
+};
+const QUICK_STARTER_LABELS_EN: Record<string, string> = {
+  "ig-content": "Instagram content",
+  "blog-article": "Blog post",
+  "youtube-script": "YouTube script",
+  "linkedin-post": "LinkedIn post",
+  "x-thread": "X thread",
+  "email-general": "Email",
+  "code-general": "Code",
+  "presentation-general": "Presentation",
+  "video-ad": "Video ad",
+  "video-cinematic": "Cinematic video",
+  "image-social-ad": "Image ad",
+  "image-concept": "Concept art",
+};
 const PROJECT_STYLE_PRESETS = [
   "Yok / serbest",
   "Sinematik",
@@ -52,6 +88,16 @@ const PROJECT_STYLE_PRESETS = [
   "Realistik",
   "Belgesel",
   "Yağlı boya",
+  "Cyberpunk neon",
+  "Minimal flat",
+] as const;
+const PROJECT_STYLE_PRESETS_EN = [
+  "None / free",
+  "Cinematic",
+  "Anime",
+  "Realistic",
+  "Documentary",
+  "Oil painting",
   "Cyberpunk neon",
   "Minimal flat",
 ] as const;
@@ -181,6 +227,9 @@ const UI_TEXT: Record<
 
 export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
   const t = UI_TEXT[locale];
+  const isEn = locale === "en";
+  const tx = (tr: string, en: string) => (isEn ? en : tr);
+  const stylePresets = isEn ? PROJECT_STYLE_PRESETS_EN : PROJECT_STYLE_PRESETS;
   const { user, isLoaded } = useUser();
   const { signOut } = useClerk();
   const [intent, setIntent] = useState("");
@@ -208,9 +257,14 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
   const [projectTitle, setProjectTitle] = useState("");
   const [projectCharacterProfile, setProjectCharacterProfile] = useState("");
   const [projectStyleProfile, setProjectStyleProfile] = useState("");
-  const [projectStylePreset, setProjectStylePreset] = useState<(typeof PROJECT_STYLE_PRESETS)[number]>("Yok / serbest");
+  const [projectStylePreset, setProjectStylePreset] = useState<
+    (typeof PROJECT_STYLE_PRESETS)[number] | (typeof PROJECT_STYLE_PRESETS_EN)[number]
+  >(locale === "en" ? "None / free" : "Yok / serbest");
   const [projectScenes, setProjectScenes] = useState<SceneItem[]>([]);
   const [projectLoading, setProjectLoading] = useState(false);
+  const [labFormat, setLabFormat] = useState<LabFormat>("");
+  const [negativePrompt, setNegativePrompt] = useState("");
+  const [labFlavor, setLabFlavor] = useState<LabFlavor>("none");
 
   const weeklyEstimate = useMemo(() => getEstimatedWeeklyPromptCount(), []);
   const effectiveTarget = useMemo<AiTargetId>(() => (expertMode ? target : "universal"), [expertMode, target]);
@@ -335,6 +389,9 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           outputLanguage,
           mediaPreset,
           projectId: showSceneProjectUI ? activeProjectId || undefined : undefined,
+          labFormat,
+          negativePrompt,
+          labFlavor,
         }),
       });
       const raw = await r.text();
@@ -343,12 +400,17 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
         try {
           j = JSON.parse(raw) as typeof j;
         } catch {
-          setError(`Sunucu yanıtı işlenemedi (HTTP ${r.status}). Sayfayı yenileyip tekrar deneyin.`);
+          setError(
+            tx(
+              `Sunucu yanıtı işlenemedi (HTTP ${r.status}). Sayfayı yenileyip tekrar deneyin.`,
+              `Could not parse server response (HTTP ${r.status}). Refresh and try again.`,
+            ),
+          );
           return;
         }
       }
       if (!r.ok) {
-        setError(j.error ?? "Bir hata oluştu.");
+        setError(j.error ?? tx("Bir hata oluştu.", "Something went wrong."));
         return;
       }
       const promptText = j.prompt ?? "";
@@ -370,7 +432,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
         if (activeProjectId) await loadProjectScenes(activeProjectId);
       }
     } catch {
-      setError("Ağ hatası. Bağlantını kontrol et.");
+      setError(tx("Ağ hatası. Bağlantını kontrol et.", "Network error. Check your connection."));
     } finally {
       setLoading(false);
     }
@@ -380,7 +442,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
     const cleanTitle = projectTitle.trim();
     if (!cleanTitle) return;
     const composedStyleProfile =
-      projectStylePreset && projectStylePreset !== "Yok / serbest"
+      projectStylePreset && !["Yok / serbest", "None / free"].includes(projectStylePreset)
         ? [projectStylePreset, projectStyleProfile.trim()].filter(Boolean).join(" | ")
         : projectStyleProfile.trim();
     setProjectLoading(true);
@@ -400,7 +462,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
       setProjectTitle("");
       setProjectCharacterProfile("");
       setProjectStyleProfile("");
-      setProjectStylePreset("Yok / serbest");
+      setProjectStylePreset(isEn ? "None / free" : "Yok / serbest");
       await loadProjects();
       if (j.id) {
         setActiveProjectId(j.id);
@@ -505,6 +567,28 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
     }
   }
 
+  async function toggleShareToFeed(entryId: string) {
+    if (!(isLoaded && user?.id)) return;
+    const entry = recentList.find((e) => e.id === entryId);
+    if (!entry) return;
+    const next = !entry.shareToFeed;
+    try {
+      const r = await fetch(`/api/history/${entryId}/share`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shareToFeed: next }),
+      });
+      if (!r.ok) return;
+      const j = (await r.json()) as { id?: string; shareToFeed?: boolean };
+      if (!j.id || typeof j.shareToFeed !== "boolean") return;
+      setRecentList((prev) =>
+        prev.map((item) => (item.id === j.id ? { ...item, shareToFeed: j.shareToFeed } : item)),
+      );
+    } catch {
+      // no-op
+    }
+  }
+
   function onTextareaKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
       e.preventDefault();
@@ -525,13 +609,13 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
   return (
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-8 px-4 py-8 sm:gap-10 sm:px-6 sm:py-10">
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
-        {copied ? "Prompt panoya kopyalandı." : ""}
+        {copied ? tx("Prompt panoya kopyalandı.", "Prompt copied to clipboard.") : ""}
       </div>
 
       <div className="rounded-lg border border-[var(--brand-lab-dim)] bg-[var(--brand-lab-dim)] px-3 py-2 text-center text-sm text-[var(--text)]">
-        <span className="font-medium text-[var(--brand-lab)]">Bu hafta</span>{" "}
-        <span className="tabular-nums font-semibold">{weeklyEstimate.toLocaleString("tr-TR")}</span> prompt üretildi —{" "}
-        <span className="text-[var(--muted)]">beta tahmini</span>
+        <span className="font-medium text-[var(--brand-lab)]">{tx("Bu hafta", "This week")}</span>{" "}
+        <span className="tabular-nums font-semibold">{weeklyEstimate.toLocaleString(isEn ? "en-US" : "tr-TR")}</span>{" "}
+        {tx("prompt üretildi", "prompts generated")} — <span className="text-[var(--muted)]">{tx("beta tahmini", "beta estimate")}</span>
       </div>
 
       <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -543,17 +627,22 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
               <span className="font-bold text-[var(--brand-lab)]">Lab</span>
               <span
                 className="rounded-full border border-amber-400/50 bg-amber-400/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-200"
-                title="Erken erişim — geri bildirimine değer veriyoruz"
+                title={tx("Erken erişim — geri bildirimine değer veriyoruz", "Early access — your feedback matters")}
               >
                 Beta
               </span>
             </h1>
           </div>
           <p className="max-w-xl text-[15px] leading-relaxed text-[var(--muted)]">
-            Ne istediğini kendi cümlelerinle yaz; varsayılan olarak{" "}
-            <strong className="font-medium text-[var(--text)]">akıllı optimizasyon</strong> (evrensel, Role–Task–Format)
-            ile çalışırız. İstersen uzman modda Midjourney, Copilot veya belirli bir sohbet modeli için ince ayarlı çıktı
-            alırsın.
+            {tx(
+              "Ne istediğini kendi cümlelerinle yaz; varsayılan olarak ",
+              "Describe your goal in your own words; by default we use ",
+            )}
+            <strong className="font-medium text-[var(--text)]">{tx("akıllı optimizasyon", "smart optimization")}</strong>{" "}
+            {tx(
+              "(evrensel, Role–Task–Format) ile çalışırız. İstersen uzman modda Midjourney, Copilot veya belirli bir sohbet modeli için ince ayarlı çıktı alırsın.",
+              "(universal, Role–Task–Format). Switch to expert mode for Midjourney, Copilot, or a specific chat model for finer control.",
+            )}
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
@@ -569,7 +658,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                 onClick={() => signOut({ redirectUrl: "/" })}
                 className="rounded-md border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text)] hover:bg-white/5"
               >
-                Çıkış
+                {tx("Çıkış", "Sign out")}
               </button>
             </div>
           ) : (
@@ -598,17 +687,17 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
       </header>
 
       <main className="flex flex-col gap-8">
-        <div>
+        <div id="tour-quick-start">
           <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">{t.quickStart}</p>
           <p className="mt-1 text-xs text-[var(--muted)]">
-            Aynı butona her tıklamada o kategoriye ait farklı bir örnek gelir.
+            {tx("Aynı butona her tıklamada o kategoriye ait farklı bir örnek gelir.", "Each click returns a different sample from that category.")}
           </p>
           <p className="mt-1 text-xs text-[var(--muted)]">
-            Hazır senaryo havuzu:{" "}
+            {tx("Hazır senaryo havuzu:", "Starter pool:")}{" "}
             <span className="font-medium text-[var(--text)]">
               {starterCategory === "all" ? totalStarterVariants : categoryStarterVariants}
             </span>{" "}
-            farklı prompt başlangıcı.
+            {tx("farklı prompt başlangıcı.", "different prompt starters.")}
           </p>
           <div className="sticky top-2 z-20 mt-2 -mx-2 rounded-xl border border-[var(--border)] bg-[var(--surface)]/95 px-2 py-2 backdrop-blur">
             <div className="flex flex-wrap gap-2">
@@ -623,7 +712,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                       : "border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]"
                   }`}
                 >
-                  {STARTER_CATEGORY_LABELS[cat]}
+                  {isEn ? STARTER_CATEGORY_LABELS_EN[cat] : STARTER_CATEGORY_LABELS[cat]}
                 </button>
               ))}
             </div>
@@ -636,7 +725,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                 onClick={() => applyStarter(s)}
                 className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--text)] transition hover:border-[var(--brand-lab)] hover:bg-[var(--brand-lab-dim)] sm:text-sm"
               >
-                {s.label}
+                {isEn ? QUICK_STARTER_LABELS_EN[s.id] ?? s.label : s.label}
               </button>
             ))}
             <button
@@ -644,7 +733,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
               onClick={() => applyStarter(starterList[Math.floor(Math.random() * starterList.length)] ?? QUICK_STARTERS[0])}
               className="rounded-full border border-dashed border-[var(--accent)] bg-transparent px-3 py-1.5 text-xs font-medium text-[var(--accent)] transition hover:bg-[var(--brand-lab-dim)] sm:text-sm"
             >
-              Bana rastgele örnek ver
+              {tx("Bana rastgele örnek ver", "Give me a random example")}
             </button>
           </div>
         </div>
@@ -652,10 +741,10 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
         {isLoaded && user?.id && showSceneProjectUI ? (
           <section className="grid gap-3 lg:grid-cols-[260px_1fr]">
             <aside className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 lg:sticky lg:top-24 lg:h-fit">
-              <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">Project sidebar</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">{tx("Proje menüsü", "Project sidebar")}</p>
               <div className="mt-2 space-y-2">
                 {projects.length === 0 ? (
-                  <p className="text-xs text-[var(--muted)]">Video projesi oluşturduğunda burada listelenecek.</p>
+                  <p className="text-xs text-[var(--muted)]">{tx("Video projesi oluşturduğunda burada listelenecek.", "Your video projects will appear here.")}</p>
                 ) : (
                   projects.map((p) => (
                     <button
@@ -669,14 +758,16 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                       }`}
                     >
                       <p className="font-medium">{p.title}</p>
-                      <p className="mt-0.5 opacity-80">{p.sceneCount} sahne</p>
+                      <p className="mt-0.5 opacity-80">
+                        {p.sceneCount} {tx("sahne", "scenes")}
+                      </p>
                     </button>
                   ))
                 )}
               </div>
             </aside>
             <div className="rounded-xl border border-dashed border-[var(--border)] px-3 py-2 text-xs text-[var(--muted)]">
-              Proje seçtiğinde sahne üretimleri aynı karakter ve stile bağlı kalır.
+              {tx("Proje seçtiğinde sahne üretimleri aynı karakter ve stile bağlı kalır.", "When a project is selected, scene generation keeps the same character and style continuity.")}
             </div>
           </section>
         ) : null}
@@ -696,19 +787,104 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
             onKeyDown={onTextareaKeyDown}
             rows={5}
             required
-            placeholder="Örn: E-ticaret sitem için anneler günü kampanyasına 3 Instagram gönderi metni…"
+            placeholder={tx(
+              "Örn: E-ticaret sitem için anneler günü kampanyasına 3 Instagram gönderi metni…",
+              "e.g. Write 3 Instagram post drafts for a Mother's Day campaign for my e-commerce brand...",
+            )}
             className="min-h-[120px] resize-y rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-[15px] leading-relaxed text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
           />
           <p className="text-xs text-[var(--muted)]">
-            İpucu: <kbd className="rounded border border-[var(--border)] bg-[var(--bg)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--text)]">Ctrl</kbd>
+            {tx("İpucu:", "Tip:")} <kbd className="rounded border border-[var(--border)] bg-[var(--bg)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--text)]">Ctrl</kbd>
             +
             <kbd className="rounded border border-[var(--border)] bg-[var(--bg)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--text)]">Enter</kbd>{" "}
-            ile hızlıca oluşturabilirsin (Mac:{" "}
+            {tx("ile hızlıca oluşturabilirsin (Mac:", "to generate quickly (Mac:")}{" "}
             <kbd className="rounded border border-[var(--border)] bg-[var(--bg)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--text)]">⌘</kbd>
             +
             <kbd className="rounded border border-[var(--border)] bg-[var(--bg)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--text)]">Enter</kbd>
-            ).
+            {")"}
           </p>
+
+          {expertMode && mediaKind ? (
+            <div className="rounded-lg border border-[var(--brand-lab)]/35 bg-[var(--brand-lab-dim)]/25 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">Lab</p>
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                {tx("Format ve negatif prompt; hedef model ile uyumlu üretim için.", "Format, negative prompt, and model flavor for media targets.")}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(["", "16:9", "9:16", "1:1"] as const).map((f) => (
+                  <button
+                    key={f || "auto"}
+                    type="button"
+                    onClick={() => setLabFormat(f)}
+                    className={`rounded-full border px-3 py-1 text-xs ${
+                      labFormat === f
+                        ? "border-[var(--brand-lab)] bg-[var(--brand-lab-dim)] text-[var(--brand-lab)]"
+                        : "border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]"
+                    }`}
+                  >
+                    {f === "" ? tx("Serbest", "Auto") : f}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-3 text-xs font-medium text-[var(--muted)]">{tx("Model modu", "Model mode")}</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExpertMode(true);
+                    setTarget("midjourney");
+                    setLabFlavor("midjourney");
+                  }}
+                  className="rounded-full border border-[var(--border)] px-3 py-1 text-xs text-[var(--text)] hover:border-[var(--brand-lab)]"
+                >
+                  Midjourney
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExpertMode(true);
+                    setTarget("sora");
+                    setLabFlavor("sora");
+                  }}
+                  className="rounded-full border border-[var(--border)] px-3 py-1 text-xs text-[var(--text)] hover:border-[var(--brand-lab)]"
+                >
+                  Sora
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExpertMode(true);
+                    setTarget("stable_diffusion");
+                    setLabFlavor("stable_diffusion");
+                  }}
+                  className="rounded-full border border-[var(--border)] px-3 py-1 text-xs text-[var(--text)] hover:border-[var(--brand-lab)]"
+                >
+                  Stable Diffusion
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLabFlavor("none")}
+                  className="rounded-full border border-dashed border-[var(--border)] px-3 py-1 text-xs text-[var(--muted)]"
+                >
+                  {tx("Modu sıfırla", "Reset mode")}
+                </button>
+              </div>
+              <label htmlFor="workbench-negative" className="mt-3 mb-1 block text-xs text-[var(--muted)]">
+                {tx("Negatif prompt (istemiyorum)", "Negative prompt (avoid)")}
+              </label>
+              <textarea
+                id="workbench-negative"
+                rows={2}
+                value={negativePrompt}
+                onChange={(e) => setNegativePrompt(e.target.value)}
+                placeholder={tx(
+                  "Örn: bulanık, düşük kalite, fazla parmak, watermark",
+                  "e.g. blurry, low quality, extra fingers, watermark",
+                )}
+                className="w-full resize-y rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+              />
+            </div>
+          ) : null}
 
           {isLoaded && user?.id && showSceneProjectUI ? (
             <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)]/40 p-4">
@@ -717,7 +893,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                 <input
                   value={projectTitle}
                   onChange={(e) => setProjectTitle(e.target.value)}
-                  placeholder="Yeni proje adı (örn. Kırmızı paltolu karakter)"
+                  placeholder={tx("Yeni proje adı (örn. Kırmızı paltolu karakter)", "New project name (e.g. Man in red coat)")}
                   className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
                 />
                 <button
@@ -732,42 +908,52 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
                 <div>
                   <label htmlFor="project-character-profile" className="mb-1 block text-xs text-[var(--muted)]">
-                    Karakter bilgisi (opsiyonel)
+                    {tx("Karakter bilgisi (opsiyonel)", "Character profile (optional)")}
                   </label>
                   <textarea
                     id="project-character-profile"
                     rows={3}
                     value={projectCharacterProfile}
                     onChange={(e) => setProjectCharacterProfile(e.target.value)}
-                    placeholder="Örn: 35 yaş erkek, kırmızı palto, kısa sakal, sakin yüz ifadesi"
+                    placeholder={tx(
+                      "Örn: 35 yaş erkek, kırmızı palto, kısa sakal, sakin yüz ifadesi",
+                      "e.g. Male, 35, red coat, short beard, calm facial expression",
+                    )}
                     className="w-full resize-y rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
                   />
                 </div>
                 <div>
                   <label htmlFor="project-style-preset" className="mb-1 block text-xs text-[var(--muted)]">
-                    Global stil kilidi
+                    {tx("Global stil kilidi", "Global style lock")}
                   </label>
                   <select
                     id="project-style-preset"
                     value={projectStylePreset}
-                    onChange={(e) => setProjectStylePreset(e.target.value as (typeof PROJECT_STYLE_PRESETS)[number])}
+                    onChange={(e) =>
+                      setProjectStylePreset(
+                        e.target.value as (typeof PROJECT_STYLE_PRESETS)[number] | (typeof PROJECT_STYLE_PRESETS_EN)[number],
+                      )
+                    }
                     className="mb-2 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
                   >
-                    {PROJECT_STYLE_PRESETS.map((preset) => (
+                    {stylePresets.map((preset) => (
                       <option key={preset} value={preset}>
                         {preset}
                       </option>
                     ))}
                   </select>
                   <label htmlFor="project-style-profile" className="mb-1 block text-xs text-[var(--muted)]">
-                    Stil bilgisi (opsiyonel)
+                    {tx("Stil bilgisi (opsiyonel)", "Style profile (optional)")}
                   </label>
                   <textarea
                     id="project-style-profile"
                     rows={3}
                     value={projectStyleProfile}
                     onChange={(e) => setProjectStyleProfile(e.target.value)}
-                    placeholder="Örn: sinematik, soft ışık, doğal renk paleti, elde kamera hissi"
+                    placeholder={tx(
+                      "Örn: sinematik, soft ışık, doğal renk paleti, elde kamera hissi",
+                      "e.g. cinematic, soft light, natural color palette, handheld camera feel",
+                    )}
                     className="w-full resize-y rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
                   />
                 </div>
@@ -794,24 +980,24 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           ) : null}
 
           <div className="flex flex-col gap-2">
-            <span className="text-sm font-medium text-[var(--text)]">Hedef / optimizasyon</span>
+            <span className="text-sm font-medium text-[var(--text)]">{tx("Hedef / optimizasyon", "Target / optimization")}</span>
             {!expertMode ? (
               <div className="rounded-lg border border-[var(--brand-lab)]/35 bg-[var(--brand-lab-dim)]/40 px-4 py-3">
-                <p className="text-sm font-medium text-[var(--text)]">Akıllı optimizasyon (varsayılan)</p>
+                <p className="text-sm font-medium text-[var(--text)]">{tx("Akıllı optimizasyon (varsayılan)", "Smart optimization (default)")}</p>
                 <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">{targetHint}</p>
                 <button
                   type="button"
                   onClick={() => setExpertMode(true)}
                   className="mt-3 text-left text-xs font-semibold text-[var(--accent)] underline decoration-[var(--accent)]/50 underline-offset-2 hover:decoration-[var(--accent)]"
                 >
-                  Uzman mod: özel hedef seç (ChatGPT, Midjourney, Copilot…)
+                  {tx("Uzman mod: özel hedef seç (ChatGPT, Midjourney, Copilot…)", "Expert mode: pick a specific target (ChatGPT, Midjourney, Copilot...)")}
                 </button>
               </div>
             ) : (
               <>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <label htmlFor="target" className="text-sm text-[var(--muted)]">
-                    Araç / model odaklı çıktı
+                    {tx("Araç / model odaklı çıktı", "Tool / model-specific output")}
                   </label>
                   <button
                     type="button"
@@ -821,7 +1007,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                     }}
                     className="text-xs font-medium text-[var(--accent)] hover:underline"
                   >
-                    Basit moda dön
+                    {tx("Basit moda dön", "Back to simple mode")}
                   </button>
                 </div>
                 <select
@@ -842,7 +1028,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           </div>
 
           <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)]/40 p-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">Prompt kalite modu</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">{tx("Prompt kalite modu", "Prompt quality mode")}</p>
             <div className="mt-2 inline-flex rounded-lg border border-[var(--border)] p-0.5 text-xs">
               <button
                 type="button"
@@ -853,7 +1039,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                     : "text-[var(--muted)] hover:text-[var(--text)]"
                 }`}
               >
-                Normal
+                {tx("Normal", "Normal")}
               </button>
               <button
                 type="button"
@@ -864,17 +1050,21 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                     : "text-[var(--muted)] hover:text-[var(--text)]"
                 }`}
               >
-                Advanced
+                {"Advanced"}
               </button>
             </div>
             <p className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
               {qualityMode === "advanced"
-                ? "Daha sıkı kısıtlar ve net çıktı beklentisiyle daha güçlü prompt üretir."
-                : "Hızlı ve dengeli bir kalite seviyesi sunar."}
+                ? tx(
+                    "Daha sıkı kısıtlar ve net çıktı beklentisiyle daha güçlü prompt üretir.",
+                    "Generates stronger prompts with stricter constraints and clearer output expectations.",
+                  )
+                : tx("Hızlı ve dengeli bir kalite seviyesi sunar.", "Provides a fast and balanced quality level.")}
             </p>
             {mediaKind && qualityMode === "normal" ? (
               <p className="mt-2 text-xs text-[var(--muted)]">
-                Video/görsel için preset seçenekleri <span className="text-[var(--text)]">Advanced</span> modda açılır.
+                {tx("Video/görsel için preset seçenekleri", "Preset options for video/image")}{" "}
+                <span className="text-[var(--text)]">Advanced</span> {tx("modda açılır.", "mode only.")}
               </p>
             ) : null}
             {!mediaKind ? (
@@ -888,11 +1078,14 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                   onChange={(e) => setOutputLanguage(e.target.value as OutputLanguage)}
                   className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
                 >
-                  <option value="tr">Turkce (onerilen)</option>
+                  <option value="tr">{tx("Turkce (onerilen)", "Turkish (recommended)")}</option>
                   <option value="en">English</option>
                 </select>
                 <p className="mt-1 text-xs text-[var(--muted)]">
-                  Prompt Ingilizce optimize edilir, ancak model yanitini secilen dilde verir.
+                  {tx(
+                    "Prompt Ingilizce optimize edilir, ancak model yanitini secilen dilde verir.",
+                    "Prompt is optimized in English, but the model responds in the selected language.",
+                  )}
                 </p>
               </div>
             ) : null}
@@ -901,10 +1094,10 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           {mediaKind && qualityMode === "advanced" ? (
             <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)]/40 p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">
-                {mediaKind === "video" ? "Video şablonu" : "Görsel şablonu"}
+                {mediaKind === "video" ? tx("Video şablonu", "Video template") : tx("Görsel şablonu", "Image template")}
               </p>
               <label htmlFor="media-preset" className="mt-2 mb-1 block text-xs text-[var(--muted)]">
-                Kalite odak preset seç
+                {tx("Kalite odak preset seç", "Select quality-focused preset")}
               </label>
               <select
                 id="media-preset"
@@ -914,36 +1107,41 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
               >
                 {mediaPresetOptions.map((opt) => (
                   <option key={opt.value} value={opt.value}>
-                    {opt.label}
+                    {isEn ? MEDIA_PRESET_LABELS_EN[opt.value] : opt.label}
                   </option>
                 ))}
               </select>
               <p className="mt-2 text-xs text-[var(--muted)]">
-                Bu seçim, video/görsel promptunda shot, kompozisyon, ritim ve kalite kurallarını otomatik sıkılaştırır.
+                {tx(
+                  "Bu seçim, video/görsel promptunda shot, kompozisyon, ritim ve kalite kurallarını otomatik sıkılaştırır.",
+                  "This option automatically tightens shot, composition, pacing, and quality rules in media prompts.",
+                )}
               </p>
             </div>
           ) : null}
 
           <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)]/40 p-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">İstersen netleştir</p>
-            <p className="mt-1 text-xs text-[var(--muted)]">Konu, ton ve kitle; isteğe bağlı — sunucuya gönderilen metne eklenir.</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">{tx("İstersen netleştir", "Optional refinements")}</p>
+            <p className="mt-1 text-xs text-[var(--muted)]">
+              {tx("Konu, ton ve kitle; isteğe bağlı — sunucuya gönderilen metne eklenir.", "Topic, tone, and audience are optional and appended to the request.")}
+            </p>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
               <div className="sm:col-span-1">
                 <label htmlFor="magic-topic" className="mb-1 block text-xs text-[var(--muted)]">
-                  Konu / odak
+                  {tx("Konu / odak", "Topic / focus")}
                 </label>
                 <input
                   id="magic-topic"
                   type="text"
                   value={topic}
                   onChange={(e) => setTopic(e.target.value)}
-                  placeholder="Örn: yaz kahvesi lansmanı"
+                  placeholder={tx("Örn: yaz kahvesi lansmanı", "e.g. summer coffee launch")}
                   className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
                 />
               </div>
               <div>
                 <label htmlFor="magic-tone" className="mb-1 block text-xs text-[var(--muted)]">
-                  Ton
+                  {tx("Ton", "Tone")}
                 </label>
                 <select
                   id="magic-tone"
@@ -951,7 +1149,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                   onChange={(e) => setTone(e.target.value)}
                   className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
                 >
-                  <option value="">Ton seç (isteğe bağlı)</option>
+                  <option value="">{tx("Ton seç (isteğe bağlı)", "Select tone (optional)")}</option>
                   {(Object.keys(TONE_LABELS) as Array<keyof typeof TONE_LABELS>).filter((k) => k !== "").map((k) => (
                     <option key={k} value={k}>
                       {TONE_LABELS[k]}
@@ -961,14 +1159,14 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
               </div>
               <div>
                 <label htmlFor="magic-audience" className="mb-1 block text-xs text-[var(--muted)]">
-                  Hedef kitle
+                  {tx("Hedef kitle", "Audience")}
                 </label>
                 <input
                   id="magic-audience"
                   type="text"
                   value={audience}
                   onChange={(e) => setAudience(e.target.value)}
-                  placeholder="Örn: 25–40 yaş şehirli"
+                  placeholder={tx("Örn: 25–40 yaş şehirli", "e.g. urban audience aged 25-40")}
                   className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
                 />
               </div>
@@ -983,11 +1181,12 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           ) : null}
 
           <button
+            id="tour-submit"
             type="submit"
             disabled={loading || !intent.trim()}
             className="inline-flex items-center justify-center rounded-lg bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-zinc-900 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {loading ? t.creating : "Profesyonel prompt oluştur"}
+            {loading ? t.creating : tx("Profesyonel prompt oluştur", "Generate professional prompt")}
           </button>
         </form>
 
@@ -997,11 +1196,13 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
               <h3 className="text-sm font-semibold text-[var(--text)]">
                 {t.projectFlow} · {activeProject.title}
               </h3>
-              <span className="text-xs text-[var(--muted)]">{projectScenes.length} sahne</span>
+              <span className="text-xs text-[var(--muted)]">
+                {projectScenes.length} {tx("sahne", "scenes")}
+              </span>
             </div>
             {projectScenes.length === 0 ? (
               <p className="text-xs text-[var(--muted)]">
-                Bu projede henüz sahne yok. İlk üretimden sonra devamlılık hafızası otomatik başlar.
+                {tx("Bu projede henüz sahne yok. İlk üretimden sonra devamlılık hafızası otomatik başlar.", "No scenes yet in this project. Continuity memory starts automatically after the first generation.")}
               </p>
             ) : (
               <ol className="space-y-2">
@@ -1033,12 +1234,12 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
             )}
             {(activeProject.characterProfile || activeProject.styleProfile) && (
               <div className="mt-3 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs">
-                <p className="font-medium text-[var(--text)]">Proje continuity profili</p>
+                <p className="font-medium text-[var(--text)]">{tx("Proje continuity profili", "Project continuity profile")}</p>
                 {activeProject.characterProfile ? (
-                  <p className="mt-1 text-[var(--muted)]">Karakter: {activeProject.characterProfile}</p>
+                  <p className="mt-1 text-[var(--muted)]">{tx("Karakter", "Character")}: {activeProject.characterProfile}</p>
                 ) : null}
                 {activeProject.styleProfile ? (
-                  <p className="mt-1 text-[var(--muted)]">Stil: {activeProject.styleProfile}</p>
+                  <p className="mt-1 text-[var(--muted)]">{tx("Stil", "Style")}: {activeProject.styleProfile}</p>
                 ) : null}
               </div>
             )}
@@ -1052,9 +1253,9 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
         >
           <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium text-[var(--text)] [&::-webkit-details-marker]:hidden">
             <span>
-              Son üretimler{" "}
+              {tx("Son üretimler", "Recent generations")}{" "}
               <span className="font-normal text-[var(--muted)]">
-                {isLoaded && user?.id ? "(hesabınla senkron)" : "(yalnızca bu cihaz)"}
+                {isLoaded && user?.id ? tx("(hesabınla senkron)", "(synced with your account)") : tx("(yalnızca bu cihaz)", "(this device only)")}
               </span>
             </span>
             {recentList.length > 0 ? (
@@ -1067,13 +1268,15 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                 }}
                 className="rounded-md border border-[var(--border)] px-2 py-1 text-xs font-normal text-[var(--muted)] hover:border-red-500/40 hover:text-red-200"
               >
-                Listeyi temizle
+                {tx("Listeyi temizle", "Clear list")}
               </button>
             ) : null}
           </summary>
           <div className="mt-3 flex items-center justify-between">
             <p className="text-xs text-[var(--muted)]">
-              {isLoaded && user?.id ? "Favorilere ekleyip hızlıca yeniden kullanabilirsin." : "Yerel geçmiş bu tarayıcıda tutulur."}
+              {isLoaded && user?.id
+                ? tx("Favorilere ekleyip hızlıca yeniden kullanabilirsin.", "Add to favorites and reuse quickly.")
+                : tx("Yerel geçmiş bu tarayıcıda tutulur.", "Local history is stored in this browser.")}
             </p>
             {isLoaded && user?.id ? (
               <button
@@ -1085,12 +1288,14 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                     : "border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]"
                 }`}
               >
-                {showOnlyFavorites ? "Tüm kayıtlar" : "Sadece favoriler"}
+                {showOnlyFavorites ? tx("Tüm kayıtlar", "All records") : tx("Sadece favoriler", "Only favorites")}
               </button>
             ) : null}
           </div>
           {filteredRecent.length === 0 ? (
-            <p className="mt-3 text-xs text-[var(--muted)]">Henüz kayıtlı üretim yok. Başarılı bir oluşturmadan sonra burada listelenir.</p>
+            <p className="mt-3 text-xs text-[var(--muted)]">
+              {tx("Henüz kayıtlı üretim yok. Başarılı bir oluşturmadan sonra burada listelenir.", "No saved generations yet. Successful outputs appear here.")}
+            </p>
           ) : (
             <ul className="mt-3 space-y-2">
               {filteredRecent.map((entry) => (
@@ -1101,26 +1306,40 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                       onClick={() => applyRecent(entry)}
                       className="min-w-0 flex-1 text-left text-[var(--text)] transition hover:text-white"
                     >
-                      <span className="block font-medium text-[var(--text)] line-clamp-1">{entry.intent || "(boş)"}</span>
+                      <span className="block font-medium text-[var(--text)] line-clamp-1">{entry.intent || tx("(boş)", "(empty)")}</span>
                       <span className="mt-0.5 block text-[var(--muted)]">
                         {AI_TARGETS.find((t) => t.id === entry.target)?.label ?? entry.target} ·{" "}
                         {new Date(entry.at).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" })}
                       </span>
                     </button>
                     {isLoaded && user?.id ? (
-                      <button
-                        type="button"
-                        onClick={() => void toggleFavorite(entry.id)}
-                        className={`rounded-md border px-2 py-1 text-[11px] ${
-                          entry.isFavorite
-                            ? "border-amber-400/50 bg-amber-400/10 text-amber-200"
-                            : "border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]"
-                        }`}
-                        aria-label={entry.isFavorite ? "Favoriden çıkar" : "Favoriye ekle"}
-                        title={entry.isFavorite ? "Favoriden çıkar" : "Favoriye ekle"}
-                      >
-                        {entry.isFavorite ? "Yildizli" : "Yildiz"}
-                      </button>
+                      <div className="flex shrink-0 flex-col gap-1">
+                        <button
+                          type="button"
+                          onClick={() => void toggleFavorite(entry.id)}
+                          className={`rounded-md border px-2 py-1 text-[11px] ${
+                            entry.isFavorite
+                              ? "border-amber-400/50 bg-amber-400/10 text-amber-200"
+                              : "border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]"
+                          }`}
+                          aria-label={entry.isFavorite ? tx("Favoriden çıkar", "Remove favorite") : tx("Favoriye ekle", "Add favorite")}
+                          title={entry.isFavorite ? tx("Favoriden çıkar", "Remove favorite") : tx("Favoriye ekle", "Add favorite")}
+                        >
+                          {entry.isFavorite ? tx("Yildizli", "Starred") : tx("Yildiz", "Star")}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void toggleShareToFeed(entry.id)}
+                          className={`rounded-md border px-2 py-1 text-[11px] ${
+                            entry.shareToFeed
+                              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+                              : "border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]"
+                          }`}
+                          title={tx("Keşfet vitrininde göster", "Show on Discover feed")}
+                        >
+                          {entry.shareToFeed ? tx("Vitrinde", "In feed") : tx("Vitrin", "Share")}
+                        </button>
+                      </div>
                     ) : null}
                   </div>
                 </li>
@@ -1134,7 +1353,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           aria-busy={loading}
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-[var(--text)]">Sonuç önizlemesi</h2>
+            <h2 className="text-sm font-semibold text-[var(--text)]">{tx("Sonuç önizlemesi", "Result preview")}</h2>
             {result && !loading ? (
               <div className="flex flex-wrap items-center gap-2">
                 <div className="flex rounded-lg border border-[var(--border)] p-0.5 text-xs">
@@ -1147,7 +1366,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                         : "text-[var(--muted)] hover:text-[var(--text)]"
                     }`}
                   >
-                    Sadece prompt
+                    {tx("Sadece prompt", "Prompt only")}
                   </button>
                   <button
                     type="button"
@@ -1158,24 +1377,24 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                         : "text-[var(--muted)] hover:text-[var(--text)]"
                     }`}
                   >
-                    + kullanım ipucu
+                    {tx("+ kullanım ipucu", "+ usage tip")}
                   </button>
                 </div>
                 <button
                   type="button"
                   onClick={() => void copyResult()}
-                  aria-label={copied ? "Kopyalandı" : "Promptu panoya kopyala"}
+                  aria-label={copied ? tx("Kopyalandı", "Copied") : tx("Promptu panoya kopyala", "Copy prompt")}
                   className="inline-flex items-center gap-2 rounded-lg border-2 border-[var(--accent)] bg-[var(--accent-dim)] px-4 py-2 text-sm font-semibold text-[var(--text)] shadow-sm hover:opacity-95"
                 >
                   <ClipboardIcon className="shrink-0 opacity-90" />
-                  {copied ? "Kopyalandı!" : "Kopyala"}
+                  {copied ? tx("Kopyalandı!", "Copied!") : tx("Kopyala", "Copy")}
                 </button>
                 <button
                   type="button"
                   onClick={() => void openInChatGPT()}
                   className="rounded-md border border-[var(--brand-lab)]/50 bg-[var(--brand-lab-dim)] px-3 py-2 text-sm font-medium text-[var(--brand-lab)] hover:opacity-90"
                 >
-                  ChatGPT&apos;de aç
+                  {tx("ChatGPT'de aç", "Open in ChatGPT")}
                 </button>
               </div>
             ) : null}
@@ -1183,17 +1402,19 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
 
           {loading ? (
             <div className="flex flex-1 flex-col gap-2">
-              <p className="text-xs text-[var(--muted)]">Profesyonel prompt hazırlanıyor…</p>
+              <p className="text-xs text-[var(--muted)]">{tx("Profesyonel prompt hazırlanıyor…", "Preparing professional prompt...")}</p>
               <ResultSkeleton />
             </div>
           ) : result ? (
             <div className="flex min-h-0 flex-1 flex-col gap-2">
               {resultProvider === "mock" ? (
                 <p className="rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-                  <span className="font-semibold">Demo modu:</span> Canlı yapay zeka çağrılmadı (
-                  <code className="rounded bg-black/30 px-1">PROMPTLAB_GENERATE_MODE=mock</code>
-                  ). Gerçek çıktı için .env içinde <code className="rounded bg-black/30 px-1">openai</code> veya{" "}
-                  <code className="rounded bg-black/30 px-1">groq</code> kullanın.
+                  <span className="font-semibold">{tx("Demo modu:", "Demo mode:")}</span>{" "}
+                  {tx("Canlı yapay zeka çağrılmadı", "No live AI call was made")} (
+                  <code className="rounded bg-black/30 px-1">PROMPTLAB_GENERATE_MODE=mock</code>).{" "}
+                  {tx("Gerçek çıktı için .env içinde", "For real outputs, set")}{" "}
+                  <code className="rounded bg-black/30 px-1">openai</code> {tx("veya", "or")}{" "}
+                  <code className="rounded bg-black/30 px-1">groq</code> {tx("kullanın.", "in .env.")}
                 </p>
               ) : null}
               <pre
@@ -1204,18 +1425,18 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
               </pre>
               {outputMode === "with-tip" ? (
                 <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)]/80 p-4 text-sm leading-relaxed text-[var(--muted)]">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[var(--brand-lab)]">Kullanım ipucu</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[var(--brand-lab)]">{tx("Kullanım ipucu", "Usage tip")}</p>
                   <p className="mt-2 text-[var(--text)]">{usageNote}</p>
                 </div>
               ) : null}
             </div>
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center rounded-lg border border-dashed border-[var(--border)] bg-[var(--bg)]/50 px-4 py-10 text-center">
-              <p className="text-sm text-[var(--muted)]">Henüz sonuç yok.</p>
+              <p className="text-sm text-[var(--muted)]">{tx("Henüz sonuç yok.", "No result yet.")}</p>
               <p className="mt-2 max-w-sm text-xs text-[var(--muted)]">
-                İstersen aşağıdaki örneklerden birine tıkla veya kendi cümlelerini yaz;{" "}
-                <strong className="text-[var(--text)]">Profesyonel prompt oluştur</strong>
-                &apos;a bas — metin burada belirir.
+                {tx("İstersen aşağıdaki örneklerden birine tıkla veya kendi cümlelerini yaz;", "Click a sample below or write your own request;")}{" "}
+                <strong className="text-[var(--text)]">{tx("Profesyonel prompt oluştur", "Generate professional prompt")}</strong>{" "}
+                {tx("butonuna bas — metin burada belirir.", "and the result will appear here.")}
               </p>
               <div className="mt-6 flex max-w-md flex-wrap justify-center gap-2">
                 {QUICK_STARTERS.slice(0, 3).map((s) => (
@@ -1225,7 +1446,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                     onClick={() => applyStarter(s)}
                     className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--accent)] hover:bg-[var(--brand-lab-dim)]"
                   >
-                    Örnek: {s.label}
+                    {tx("Sample:", "Sample:")} {isEn ? QUICK_STARTER_LABELS_EN[s.id] ?? s.label : s.label}
                   </button>
                 ))}
               </div>
@@ -1247,23 +1468,28 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           </Link>
           <span className="mx-2 text-[var(--border)]">·</span>
           <Link href="/hizmet-sartlari" className="text-[var(--text)] hover:underline">
-            Hizmet şartları
+            {tx("Hizmet şartları", "Terms of service")}
           </Link>
           <span className="mx-2 text-[var(--border)]">·</span>
           <Link href="/pricing" className="text-[var(--accent)] hover:underline">
             {t.pricing}
           </Link>
+          <span className="mx-2 text-[var(--border)]">·</span>
+          <Link href="/discover" className="text-[var(--muted)] hover:text-[var(--text)] hover:underline">
+            Keşfet
+          </Link>
         </p>
         <p className="mt-4 text-xs text-[var(--muted)]">
-          © 2026 PromptLab. Tüm hakları saklıdır.
+          {tx("© 2026 PromptLab. Tüm hakları saklıdır.", "© 2026 PromptLab. All rights reserved.")}
           <span className="mx-1.5 text-[var(--border)]">·</span>
-          Ayrıntı için{" "}
+          {tx("Ayrıntı için", "For details, see")}{" "}
           <Link href="/gizlilik" className="text-[var(--text)] underline hover:text-[var(--brand-lab)]">
-            gizlilik sayfası
+            {tx("gizlilik sayfası", "privacy page")}
           </Link>
           .
         </p>
       </footer>
+      <WorkbenchOnboarding />
     </div>
   );
 }

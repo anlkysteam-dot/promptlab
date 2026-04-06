@@ -21,7 +21,7 @@ const IMAGE_RE = /\b(midjourney|dall|image|visual|logo|poster|illustration|rende
 const VIDEO_RE = /\b(video|reklam filmi|shot|scene|storyboard|sora|runway|veo|kling|pika|cinematic|fps)\b/i;
 
 export function inferPromptTemplate(input: string, target: AiTargetId): PromptTemplateKind {
-  if (target === "midjourney" || target === "dalle") return "image";
+  if (target === "midjourney" || target === "dalle" || target === "stable_diffusion") return "image";
   if (target === "runway" || target === "veo" || target === "sora" || target === "kling" || target === "pika")
     return "video";
   if (target === "copilot") return "coding";

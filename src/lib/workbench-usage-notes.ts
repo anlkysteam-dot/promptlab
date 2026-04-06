@@ -14,6 +14,8 @@ const NOTES: Record<AiTargetId, string> = {
     "Copilot / IDE içinde ilgili dosyayı açık tut ve bu metni yorum veya sohbet alanına yapıştır; dil ve çatıyı yukarıda belirttiysen bağlamı koru.",
   midjourney:
     "Midjourney’de /imagine veya eşdeğer alana ana betimlemeyi yapıştır; parametreleri (--ar, --style) platformda sonradan ekleyebilirsin.",
+  stable_diffusion:
+    "SDXL / A1111 / ComfyUI tarafında pozitif/negatif prompt alanlarına böl; ağırlık parantezleri veya (etiket:1.2) gibi kullanım araçlarına göre değişir.",
   dalle:
     "Görsel aracında metin alanına yapıştır; yasaklı içerik istemediğinden emin ol ve gerekirse daha soyut bir sahne tarif et.",
   runway:

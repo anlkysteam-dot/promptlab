@@ -13,6 +13,8 @@ const TARGET_LINES: Record<AiTargetId, string> = {
     "Structure for a coding assistant: language/runtime, file or module context, acceptance criteria, style and error-handling expectations.",
   midjourney:
     "Produce a Midjourney-style prompt: vivid comma-separated visual description, style, lighting, aspect ratio hint; avoid conversational filler.",
+  stable_diffusion:
+    "Produce a Stable Diffusion / SDXL prompt: detailed positive tags, optional weights, explicit negative prompt list, composition and lighting.",
   dalle:
     "Produce an image-model prompt: scene, subjects, style, composition, lighting; stay policy-safe.",
   runway:

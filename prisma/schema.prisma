@@ -99,6 +99,8 @@ model PromptHistory {
   target    String
   prompt    String
   isFavorite Boolean @default(false)
+  /// Keşfet vitrininde göster (kullanıcı açıkça izin verirse)
+  shareToFeed Boolean @default(false)
   topic     String   @default("")
   tone      String   @default("")
   audience  String   @default("")
@@ -106,6 +108,7 @@ model PromptHistory {
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt(sort: Desc)])
+  @@index([shareToFeed, createdAt(sort: Desc)])
 }
 
 model PromptProject {

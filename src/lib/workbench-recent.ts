@@ -10,6 +10,7 @@ export type RecentPromptEntry = {
   target: AiTargetId;
   prompt: string;
   isFavorite?: boolean;
+  shareToFeed?: boolean;
   topic: string;
   tone: string;
   audience: string;
