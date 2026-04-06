@@ -60,6 +60,7 @@ model User {
   accounts             Account[]
   sessions             Session[]
   passwordResetTokens  PasswordResetToken[]
+  promptHistories      PromptHistory[]
 }
 
 model PasswordResetToken {
@@ -87,4 +88,21 @@ model UsageCounter {
   count      Int    @default(0)
 
   @@unique([subjectKey, day])
+}
+
+model PromptHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  intent    String
+  target    String
+  prompt    String
+  isFavorite Boolean @default(false)
+  topic     String   @default("")
+  tone      String   @default("")
+  audience  String   @default("")
+  provider  String
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
 }

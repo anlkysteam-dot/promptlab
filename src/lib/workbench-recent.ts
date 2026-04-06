@@ -9,6 +9,7 @@ export type RecentPromptEntry = {
   intent: string;
   target: AiTargetId;
   prompt: string;
+  isFavorite?: boolean;
   topic: string;
   tone: string;
   audience: string;

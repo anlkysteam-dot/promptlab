@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { Prisma } from "@prisma/client";
 
 import { getAppUser } from "@/lib/app-user";
+import { prisma } from "@/lib/prisma";
 
 import { buildSystemPrompt } from "@/lib/build-system-prompt";
 
@@ -17,6 +18,13 @@ import { llmFailureMessage } from "@/lib/llm-errors";
 import { buildMockPrompt } from "@/lib/mock-prompt";
 
 import { resolvePremiumForUser } from "@/lib/premium";
+import {
+  checklistInstruction,
+  inferPromptTemplate,
+  qualityModeInstruction,
+  templateInstruction,
+  type PromptQualityMode,
+} from "@/lib/prompt-quality";
 
 import { AI_TARGETS, type AiTargetId } from "@/lib/targets";
 
@@ -97,6 +105,12 @@ export async function POST(req: Request) {
   const intent = String((body as { intent?: string })?.intent ?? "").trim();
 
   const target = (body as { target?: string })?.target as AiTargetId | undefined;
+  const topic = String((body as { topic?: string })?.topic ?? "").trim().slice(0, 160);
+  const tone = String((body as { tone?: string })?.tone ?? "").trim().slice(0, 80);
+  const audience = String((body as { audience?: string })?.audience ?? "").trim().slice(0, 160);
+  const qualityMode = ((body as { qualityMode?: string })?.qualityMode === "advanced"
+    ? "advanced"
+    : "normal") as PromptQualityMode;
 
 
 
@@ -313,6 +327,23 @@ export async function POST(req: Request) {
     const client = createLlmClient(mode);
 
     const model = getChatModel(mode);
+    const templateKind = inferPromptTemplate(intent, target);
+    const composedUserInput = [
+      "Rewrite the following user request into a high-quality English prompt for the selected AI target.",
+      "Do not translate literally; optimize for result quality.",
+      qualityModeInstruction(qualityMode),
+      templateInstruction(templateKind),
+      checklistInstruction(templateKind),
+      "",
+      "[USER_REQUEST_RAW]",
+      intent,
+      "",
+      "[USER_METADATA]",
+      `target=${target}`,
+      `topic=${topic || "(none)"}`,
+      `tone=${tone || "(none)"}`,
+      `audience=${audience || "(none)"}`,
+    ].join("\n");
 
     try {
 
@@ -326,7 +357,7 @@ export async function POST(req: Request) {
 
           { role: "system", content: buildSystemPrompt(target) },
 
-          { role: "user", content: intent },
+          { role: "user", content: composedUserInput },
 
         ],
 
@@ -384,6 +415,26 @@ export async function POST(req: Request) {
 
     usedAfter = premium ? 0 : FREE_DAILY_PROMPT_LIMIT;
 
+  }
+
+  if (appUser?.id) {
+    try {
+      await prisma.promptHistory.create({
+        data: {
+          userId: appUser.id,
+          intent,
+          target,
+          prompt: promptText,
+          topic,
+          tone,
+          audience,
+          provider,
+        },
+      });
+    } catch (e) {
+      // Geçmiş kaydı başarısız olsa da ana üretim yanıtını düşürmeyelim.
+      console.error("promptHistory.create", e);
+    }
   }
 
 

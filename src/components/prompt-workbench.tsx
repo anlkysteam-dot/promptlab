@@ -1,7 +1,7 @@
 "use client";
 
 import { useClerk, useUser } from "@clerk/nextjs";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { BeforeAfterExamples } from "@/components/before-after-examples";
 import { LogoMark } from "@/components/logo-mark";
@@ -16,6 +16,7 @@ import {
 } from "@/lib/workbench-recent";
 import { getWorkbenchTargetHint } from "@/lib/workbench-target-hints";
 import { getWorkbenchUsageNote } from "@/lib/workbench-usage-notes";
+import type { PromptQualityMode } from "@/lib/prompt-quality";
 import { QUICK_STARTERS } from "@/lib/quick-starters";
 import { AI_TARGETS, type AiTargetId } from "@/lib/targets";
 
@@ -67,17 +68,35 @@ export function PromptWorkbench() {
   const [resultProvider, setResultProvider] = useState<"openai" | "groq" | "mock" | null>(null);
   const [copied, setCopied] = useState(false);
   const [outputMode, setOutputMode] = useState<OutputMode>("prompt-only");
+  const [qualityMode, setQualityMode] = useState<PromptQualityMode>("normal");
   const [recentOpen, setRecentOpen] = useState(false);
   const [recentList, setRecentList] = useState<RecentPromptEntry[]>([]);
+  const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
 
   const weeklyEstimate = useMemo(() => getEstimatedWeeklyPromptCount(), []);
   const effectiveTarget = useMemo<AiTargetId>(() => (expertMode ? target : "universal"), [expertMode, target]);
   const targetHint = useMemo(() => getWorkbenchTargetHint(effectiveTarget), [effectiveTarget]);
   const usageNote = useMemo(() => getWorkbenchUsageNote(effectiveTarget), [effectiveTarget]);
 
-  useEffect(() => {
+  const loadRecent = useCallback(async () => {
+    if (isLoaded && user?.id) {
+      try {
+        const r = await fetch("/api/history", { method: "GET", cache: "no-store" });
+        if (r.ok) {
+          const j = (await r.json()) as { items?: RecentPromptEntry[] };
+          setRecentList(Array.isArray(j.items) ? j.items : []);
+          return;
+        }
+      } catch {
+        // Sunucu geçmişi okunamazsa local fallback.
+      }
+    }
     setRecentList(readRecentPrompts());
-  }, [result]);
+  }, [isLoaded, user?.id]);
+
+  useEffect(() => {
+    void loadRecent();
+  }, [loadRecent]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -91,7 +110,7 @@ export function PromptWorkbench() {
       const r = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ intent: payload, target: effectiveTarget }),
+        body: JSON.stringify({ intent: payload, target: effectiveTarget, topic, tone, audience, qualityMode }),
       });
       const raw = await r.text();
       let j: { prompt?: string; error?: string; provider?: "openai" | "groq" | "mock" } = {};
@@ -110,15 +129,17 @@ export function PromptWorkbench() {
       const promptText = j.prompt ?? "";
       setResult(promptText);
       setResultProvider(j.provider ?? "openai");
-      pushRecentPrompt({
-        intent,
-        target: effectiveTarget,
-        prompt: promptText,
-        topic,
-        tone,
-        audience,
-      });
-      setRecentList(readRecentPrompts());
+      if (!user?.id) {
+        pushRecentPrompt({
+          intent,
+          target: effectiveTarget,
+          prompt: promptText,
+          topic,
+          tone,
+          audience,
+        });
+      }
+      await loadRecent();
     } catch {
       setError("Ağ hatası. Bağlantını kontrol et.");
     } finally {
@@ -164,9 +185,33 @@ export function PromptWorkbench() {
     setRecentOpen(true);
   }
 
-  function handleClearRecent() {
+  async function handleClearRecent() {
+    if (isLoaded && user?.id) {
+      try {
+        await fetch("/api/history", { method: "DELETE" });
+      } catch {
+        // no-op
+      }
+      setRecentList([]);
+      return;
+    }
     clearRecentStorage();
     setRecentList([]);
+  }
+
+  async function toggleFavorite(entryId: string) {
+    if (!(isLoaded && user?.id)) return;
+    try {
+      const r = await fetch(`/api/history/${entryId}/favorite`, { method: "PATCH" });
+      if (!r.ok) return;
+      const j = (await r.json()) as { id?: string; isFavorite?: boolean };
+      if (!j.id || typeof j.isFavorite !== "boolean") return;
+      setRecentList((prev) =>
+        prev.map((item) => (item.id === j.id ? { ...item, isFavorite: j.isFavorite } : item)),
+      );
+    } catch {
+      // no-op
+    }
   }
 
   function onTextareaKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -176,6 +221,11 @@ export function PromptWorkbench() {
       if (!loading && intent.trim() && form) form.requestSubmit();
     }
   }
+
+  const filteredRecent = useMemo(
+    () => (showOnlyFavorites ? recentList.filter((x) => x.isFavorite) : recentList),
+    [recentList, showOnlyFavorites],
+  );
 
   return (
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-8 px-4 py-8 sm:gap-10 sm:px-6 sm:py-10">
@@ -341,6 +391,39 @@ export function PromptWorkbench() {
           </div>
 
           <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)]/40 p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">Prompt kalite modu</p>
+            <div className="mt-2 inline-flex rounded-lg border border-[var(--border)] p-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => setQualityMode("normal")}
+                className={`rounded-md px-2.5 py-1.5 font-medium transition ${
+                  qualityMode === "normal"
+                    ? "bg-[var(--accent)] text-zinc-900"
+                    : "text-[var(--muted)] hover:text-[var(--text)]"
+                }`}
+              >
+                Normal
+              </button>
+              <button
+                type="button"
+                onClick={() => setQualityMode("advanced")}
+                className={`rounded-md px-2.5 py-1.5 font-medium transition ${
+                  qualityMode === "advanced"
+                    ? "bg-[var(--accent)] text-zinc-900"
+                    : "text-[var(--muted)] hover:text-[var(--text)]"
+                }`}
+              >
+                Advanced
+              </button>
+            </div>
+            <p className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
+              {qualityMode === "advanced"
+                ? "Daha sıkı kısıtlar ve net çıktı beklentisiyle daha güçlü prompt üretir."
+                : "Hızlı ve dengeli bir kalite seviyesi sunar."}
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)]/40 p-4">
             <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">İstersen netleştir</p>
             <p className="mt-1 text-xs text-[var(--muted)]">Konu, ton ve kitle; isteğe bağlı — sunucuya gönderilen metne eklenir.</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
@@ -430,7 +513,10 @@ export function PromptWorkbench() {
         >
           <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium text-[var(--text)] [&::-webkit-details-marker]:hidden">
             <span>
-              Son üretimler <span className="font-normal text-[var(--muted)]">(yalnızca bu cihaz)</span>
+              Son üretimler{" "}
+              <span className="font-normal text-[var(--muted)]">
+                {isLoaded && user?.id ? "(hesabınla senkron)" : "(yalnızca bu cihaz)"}
+              </span>
             </span>
             {recentList.length > 0 ? (
               <button
@@ -446,23 +532,58 @@ export function PromptWorkbench() {
               </button>
             ) : null}
           </summary>
-          {recentList.length === 0 ? (
+          <div className="mt-3 flex items-center justify-between">
+            <p className="text-xs text-[var(--muted)]">
+              {isLoaded && user?.id ? "Favorilere ekleyip hızlıca yeniden kullanabilirsin." : "Yerel geçmiş bu tarayıcıda tutulur."}
+            </p>
+            {isLoaded && user?.id ? (
+              <button
+                type="button"
+                onClick={() => setShowOnlyFavorites((v) => !v)}
+                className={`rounded-md border px-2 py-1 text-xs ${
+                  showOnlyFavorites
+                    ? "border-[var(--brand-lab)] bg-[var(--brand-lab-dim)] text-[var(--brand-lab)]"
+                    : "border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]"
+                }`}
+              >
+                {showOnlyFavorites ? "Tüm kayıtlar" : "Sadece favoriler"}
+              </button>
+            ) : null}
+          </div>
+          {filteredRecent.length === 0 ? (
             <p className="mt-3 text-xs text-[var(--muted)]">Henüz kayıtlı üretim yok. Başarılı bir oluşturmadan sonra burada listelenir.</p>
           ) : (
             <ul className="mt-3 space-y-2">
-              {recentList.map((entry) => (
-                <li key={entry.id}>
-                  <button
-                    type="button"
-                    onClick={() => applyRecent(entry)}
-                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-left text-xs text-[var(--text)] transition hover:border-[var(--brand-lab)]/50"
-                  >
-                    <span className="block font-medium text-[var(--text)] line-clamp-1">{entry.intent || "(boş)"}</span>
-                    <span className="mt-0.5 block text-[var(--muted)]">
-                      {AI_TARGETS.find((t) => t.id === entry.target)?.label ?? entry.target} ·{" "}
-                      {new Date(entry.at).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" })}
-                    </span>
-                  </button>
+              {filteredRecent.map((entry) => (
+                <li key={entry.id} className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs">
+                  <div className="flex items-start justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => applyRecent(entry)}
+                      className="min-w-0 flex-1 text-left text-[var(--text)] transition hover:text-white"
+                    >
+                      <span className="block font-medium text-[var(--text)] line-clamp-1">{entry.intent || "(boş)"}</span>
+                      <span className="mt-0.5 block text-[var(--muted)]">
+                        {AI_TARGETS.find((t) => t.id === entry.target)?.label ?? entry.target} ·{" "}
+                        {new Date(entry.at).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" })}
+                      </span>
+                    </button>
+                    {isLoaded && user?.id ? (
+                      <button
+                        type="button"
+                        onClick={() => void toggleFavorite(entry.id)}
+                        className={`rounded-md border px-2 py-1 text-[11px] ${
+                          entry.isFavorite
+                            ? "border-amber-400/50 bg-amber-400/10 text-amber-200"
+                            : "border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]"
+                        }`}
+                        aria-label={entry.isFavorite ? "Favoriden çıkar" : "Favoriye ekle"}
+                        title={entry.isFavorite ? "Favoriden çıkar" : "Favoriye ekle"}
+                      >
+                        {entry.isFavorite ? "Yildizli" : "Yildiz"}
+                      </button>
+                    ) : null}
+                  </div>
                 </li>
               ))}
             </ul>
