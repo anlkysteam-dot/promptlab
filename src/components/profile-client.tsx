@@ -8,6 +8,7 @@ import { ProfileUsageChart } from "@/components/profile-usage-chart";
 import { RecentGenerationsPanel } from "@/components/recent-generations-panel";
 import { ThemePreferenceSelect } from "@/components/theme-preference-select";
 import { FREE_DAILY_CREDIT_BUDGET } from "@/lib/constants";
+import { formatLedgerMetaLine } from "@/lib/credit-ledger-meta";
 
 type UiLocale = "tr" | "en";
 
@@ -32,6 +33,15 @@ type HistoryItem = {
   topic: string;
   tone: string;
   audience: string;
+};
+
+type CreditLedgerRow = {
+  id: string;
+  kind: string;
+  delta: number;
+  summary: string | null;
+  meta: string | null;
+  createdAt: string;
 };
 
 function maskId(id: string | null | undefined): string | null {
@@ -101,6 +111,7 @@ export function ProfileClient({
   const homePath = locale === "en" ? "/en" : "/tr";
   const [usage, setUsage] = useState<UsageState>(null);
   const [usageSeries, setUsageSeries] = useState<Array<{ day: string; count: number }> | null>(null);
+  const [creditLedger, setCreditLedger] = useState<CreditLedgerRow[] | null>(null);
   const [exportBusy, setExportBusy] = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
   const [portalErr, setPortalErr] = useState<string | null>(null);
@@ -130,6 +141,24 @@ export function ProfileClient({
         }
       } catch {
         // no-op
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoaded, user?.id]);
+
+  useEffect(() => {
+    if (!isLoaded || !user?.id) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const r = await fetch("/api/credits/ledger", { cache: "no-store" });
+        if (!r.ok || cancelled) return;
+        const j = (await r.json()) as { items?: CreditLedgerRow[] };
+        if (!cancelled) setCreditLedger(Array.isArray(j.items) ? j.items : []);
+      } catch {
+        if (!cancelled) setCreditLedger([]);
       }
     })();
     return () => {
@@ -339,6 +368,66 @@ export function ProfileClient({
           </section>
 
           <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+            <h2 className="text-sm font-semibold text-[var(--text)]">{tx("Kredi hareketleri", "Credit activity")}</h2>
+            <p className="mt-2 text-xs text-[var(--muted)]">
+              {tx(
+                "Satın alma ve üretimde kullanılan kredilerin kaydı (son kayıtlar).",
+                "Log of purchases and credits spent on generations (recent entries).",
+              )}
+            </p>
+            {creditLedger === null ? (
+              <p className="mt-3 text-sm text-[var(--muted)]">…</p>
+            ) : creditLedger.length === 0 ? (
+              <p className="mt-3 text-sm text-[var(--muted)]">
+                {tx("Henüz kayıt yok.", "No entries yet.")}
+              </p>
+            ) : (
+              <ul className="mt-3 max-h-[min(420px,50vh)] space-y-2 overflow-y-auto pr-1">
+                {creditLedger.map((row) => {
+                  const at = new Date(row.createdAt);
+                  const kindLabel =
+                    row.kind === "generation"
+                      ? tx("Üretim", "Generation")
+                      : row.kind === "purchase" || row.kind.startsWith("purchase")
+                        ? tx("Satın alma", "Purchase")
+                        : row.kind;
+                  const deltaStr = row.delta > 0 ? `+${row.delta}` : String(row.delta);
+                  const metaLine = formatLedgerMetaLine(row.meta, locale);
+                  return (
+                    <li
+                      key={row.id}
+                      className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm"
+                    >
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <span className="text-xs text-[var(--muted)]">
+                          {at.toLocaleString(isEn ? "en-US" : "tr-TR", {
+                            dateStyle: "short",
+                            timeStyle: "short",
+                          })}
+                        </span>
+                        <span
+                          className={`tabular-nums font-semibold ${
+                            row.delta >= 0 ? "text-[var(--success-fg)]" : "text-[var(--err-fg)]"
+                          }`}
+                        >
+                          {deltaStr}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs font-medium text-[var(--text)]">{kindLabel}</p>
+                      {row.summary ? (
+                        <p className="mt-0.5 text-xs text-[var(--muted)]">{row.summary}</p>
+                      ) : null}
+                      {metaLine ? (
+                        <p className="mt-1 text-xs leading-snug text-[var(--text)]">{metaLine}</p>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+
+          <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
             <h2 className="text-sm font-semibold text-[var(--text)]">{tx("Abonelik ve ödeme", "Subscription & billing")}</h2>
             <dl className="mt-3 space-y-2 text-sm text-[var(--muted)]">
               <div>
@@ -450,6 +539,12 @@ export function ProfileClient({
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm text-[var(--muted)]">
                   <Link href="/discover" className="text-[var(--accent)] hover:underline">
                     {tx("Keşfet", "Discover")}
+                  </Link>
+                  <Link
+                    href={locale === "en" ? "/en/how-it-works" : "/tr/nasil-calisir"}
+                    className="text-[var(--accent)] hover:underline"
+                  >
+                    {tx("Nasıl çalışır", "How it works")}
                   </Link>
                   <Link href="/pricing" className="hover:text-[var(--text)] hover:underline">
                     {tx("Fiyatlandırma", "Pricing")}

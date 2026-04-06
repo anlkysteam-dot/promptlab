@@ -86,3 +86,18 @@ html[data-theme="light"] body {
   background: radial-gradient(1200px 600px at 20% -10%, #dbeafe 0%, transparent 55%),
     radial-gradient(900px 500px at 100% 0%, #e0e7ff 0%, transparent 50%), var(--bg);
 }
+
+@keyframes credit-toast-in {
+  from {
+    transform: translateY(110%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-credit-toast-in {
+  animation: credit-toast-in 0.35s ease-out;
+}

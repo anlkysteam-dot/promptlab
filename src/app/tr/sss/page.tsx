@@ -38,6 +38,13 @@ export default function TrFaqPage() {
           Uzman modda işaretlerseniz, seçtiğiniz hedef ve Lab lezzetine uygun <em>bilgilendirici</em> başlangıç ipuçları
           modele eklenir. Bunlar yine otomatik uygulanmaz; final kontrol ve yapıştırma size aittir.
         </p>
+
+        <p className="mt-8 text-sm">
+          <Link href="/tr/nasil-calisir" className="font-medium text-[var(--accent)] hover:underline">
+            Nasıl çalışır?
+          </Link>{" "}
+          sayfasında Lab ekranı, modlar, kredi ve Keşfet için adım adım rehberi bulabilirsiniz.
+        </p>
       </section>
     </div>
   );

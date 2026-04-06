@@ -19,6 +19,7 @@ import { generationCreditCost } from "@/lib/usage";
 import { FREE_DAILY_CREDIT_BUDGET } from "@/lib/constants";
 import { WorkbenchOnboarding } from "@/components/workbench-onboarding";
 import { WorkbenchShortcutsModal } from "@/components/workbench-shortcuts";
+import { CreditSpendToast, type CreditToastPayload } from "@/components/credit-spend-toast";
 
 const CHATGPT_URL = "https://chatgpt.com";
 const VIDEO_TARGETS: AiTargetId[] = ["runway", "veo", "sora", "kling", "pika"];
@@ -271,6 +272,8 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
     remaining: number;
     creditBalance: number;
   } | null>(null);
+  const [creditToastOpen, setCreditToastOpen] = useState(false);
+  const [creditToastPayload, setCreditToastPayload] = useState<CreditToastPayload | null>(null);
 
   const weeklyEstimate = useMemo(() => getEstimatedWeeklyPromptCount(), []);
   const effectiveTarget = useMemo<AiTargetId>(() => (expertMode ? target : "universal"), [expertMode, target]);
@@ -392,6 +395,11 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
     });
   }, [qualityMode, mediaKind, effectiveTarget]);
 
+  const dismissCreditToast = useCallback(() => {
+    setCreditToastOpen(false);
+    setCreditToastPayload(null);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -420,7 +428,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isLoaded, user?.id]);
 
   useEffect(() => {
     if (effectiveTarget !== "midjourney") {
@@ -461,7 +469,17 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
         }),
       });
       const raw = await r.text();
-      let j: { prompt?: string; error?: string; provider?: "openai" | "groq" | "mock" } = {};
+      let j: {
+        prompt?: string;
+        error?: string;
+        provider?: "openai" | "groq" | "mock";
+        premium?: boolean;
+        creditCost?: number;
+        creditBalance?: number | null;
+        spentFromDaily?: number;
+        spentFromBonus?: number;
+        remaining?: number | null;
+      } = {};
       if (raw) {
         try {
           j = JSON.parse(raw) as typeof j;
@@ -482,6 +500,17 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
       const promptText = j.prompt ?? "";
       setResult(promptText);
       setResultProvider(j.provider ?? "openai");
+      if (typeof j.creditCost === "number") {
+        setCreditToastPayload({
+          premium: Boolean(j.premium),
+          creditCost: j.creditCost,
+          creditBalance: typeof j.creditBalance === "number" ? j.creditBalance : null,
+          spentFromDaily: typeof j.spentFromDaily === "number" ? j.spentFromDaily : 0,
+          spentFromBonus: typeof j.spentFromBonus === "number" ? j.spentFromBonus : 0,
+          remainingDaily: typeof j.remaining === "number" ? j.remaining : null,
+        });
+        setCreditToastOpen(true);
+      }
       try {
         const u = await fetch("/api/usage", { cache: "no-store" });
         if (u.ok) {
@@ -668,6 +697,32 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
             <span className="text-sm text-[var(--muted)]">Oturum…</span>
           ) : user ? (
             <div className="flex flex-wrap items-center justify-end gap-2">
+              {dailyUsage ? (
+                <div
+                  className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs text-[var(--muted)]"
+                  title={tx(
+                    "Bugünkü günlük kota ve satın alınan bonus kredi (İstanbul günü).",
+                    "Today’s daily quota and purchased bonus credits (Istanbul day).",
+                  )}
+                >
+                  {dailyUsage.premium ? (
+                    <>
+                      <span className="font-medium text-[var(--accent)]">Premium</span>
+                      <span className="mx-1.5 text-[var(--border)]">·</span>
+                      <span className="tabular-nums text-[var(--text)]">{dailyUsage.creditBalance}</span>{" "}
+                      {tx("bonus kredi", "bonus cr.")}
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-medium text-[var(--text)]">{dailyUsage.remaining}</span>{" "}
+                      {tx("günlük kalan", "daily left")}
+                      <span className="mx-1.5 text-[var(--border)]">·</span>
+                      <span className="tabular-nums font-medium text-[var(--text)]">{dailyUsage.creditBalance}</span>{" "}
+                      {tx("bonus", "bonus")}
+                    </>
+                  )}
+                </div>
+              ) : null}
               <Link
                 href={isEn ? "/en/profile" : "/tr/profil"}
                 className="rounded-md border border-[var(--border)] px-3 py-1.5 text-sm font-medium text-[var(--text)] hover:bg-[var(--hover-surface)]"
@@ -1464,6 +1519,13 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
             {t.about}
           </Link>
           <span className="mx-2 text-[var(--border)]">·</span>
+          <Link
+            href={locale === "en" ? "/en/how-it-works" : "/tr/nasil-calisir"}
+            className="text-[var(--text)] hover:underline"
+          >
+            {tx("Nasıl çalışır", "How it works")}
+          </Link>
+          <span className="mx-2 text-[var(--border)]">·</span>
           <Link href={locale === "en" ? "/en/faq" : "/tr/sss"} className="text-[var(--text)] hover:underline">
             {tx("SSS", "FAQ")}
           </Link>
@@ -1500,6 +1562,12 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
       </footer>
       <WorkbenchShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} locale={locale} />
       <WorkbenchOnboarding locale={locale} />
+      <CreditSpendToast
+        open={creditToastOpen}
+        payload={creditToastPayload}
+        locale={locale}
+        onDismiss={dismissCreditToast}
+      />
     </div>
   );
 }

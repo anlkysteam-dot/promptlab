@@ -37,6 +37,14 @@ export default function EnFaqPage() {
           In expert mode, if you enable it, we add <em>informational</em> starter hints aligned with your target and Lab flavor.
           They are not auto-applied; you stay in control of the final paste.
         </p>
+
+        <p className="mt-8 text-sm">
+          For a full step-by-step walkthrough of the Lab, modes, credits, and Discover, see{" "}
+          <Link href="/en/how-it-works" className="font-medium text-[var(--accent)] hover:underline">
+            How it works
+          </Link>
+          .
+        </p>
       </section>
     </div>
   );

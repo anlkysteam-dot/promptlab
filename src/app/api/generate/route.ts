@@ -517,21 +517,35 @@ export async function POST(req: Request) {
 
 
 
+  let spendResult: { creditBalanceAfter: number | null; fromFree: number; fromPurchased: number } = {
+    creditBalanceAfter: null,
+    fromFree: 0,
+    fromPurchased: 0,
+  };
+
   if (!premium && countTowardFreeLimit) {
-
     try {
-
-      await applyGenerationAfterSuccess(subjectKey, creditCost, {
+      spendResult = await applyGenerationAfterSuccess(subjectKey, creditCost, {
         premium,
         appUserId: appUser?.id ?? null,
+        target,
       });
-
     } catch (e) {
-
       console.error("applyGenerationAfterSuccess", e);
-
     }
+  }
 
+  let creditBalanceForClient: number | null = null;
+  if (appUser?.id) {
+    try {
+      const u = await prisma.user.findUnique({
+        where: { id: appUser.id },
+        select: { creditBalance: true },
+      });
+      creditBalanceForClient = u?.creditBalance ?? 0;
+    } catch (e) {
+      console.error("creditBalance lookup", e);
+    }
   }
 
 
@@ -611,6 +625,12 @@ export async function POST(req: Request) {
       remaining: premium ? null : Math.max(0, FREE_DAILY_CREDIT_BUDGET - usedAfter),
 
       creditCost,
+
+      creditBalance: creditBalanceForClient,
+
+      spentFromDaily: spendResult.fromFree,
+
+      spentFromBonus: spendResult.fromPurchased,
 
     },
 

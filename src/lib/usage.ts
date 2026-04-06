@@ -65,13 +65,21 @@ export async function assertGenerationAllowed(
   return { ok: true, used };
 }
 
-/** Başarılı üretimden sonra günlük sayaç ve/veya satın alınan krediyi düş. */
+export type GenerationSpendResult = {
+  creditBalanceAfter: number | null;
+  fromFree: number;
+  fromPurchased: number;
+};
+
+/** Başarılı üretimden sonra günlük sayaç, bonus kredi ve defter kaydı. */
 export async function applyGenerationAfterSuccess(
   subjectKey: string,
   cost: number,
-  opts: { premium: boolean; appUserId: string | null },
-): Promise<void> {
-  if (opts.premium) return;
+  opts: { premium: boolean; appUserId: string | null; target?: string | null },
+): Promise<GenerationSpendResult> {
+  if (opts.premium) {
+    return { creditBalanceAfter: null, fromFree: 0, fromPurchased: 0 };
+  }
 
   const day = getUsageDayKey();
 
@@ -81,7 +89,7 @@ export async function applyGenerationAfterSuccess(
       create: { subjectKey, day, count: cost },
       update: { count: { increment: cost } },
     });
-    return;
+    return { creditBalanceAfter: null, fromFree: cost, fromPurchased: 0 };
   }
 
   const used = await getTodayUsageCount(subjectKey);
@@ -91,7 +99,9 @@ export async function applyGenerationAfterSuccess(
   });
   const balance = user?.creditBalance ?? 0;
   const split = splitGenerationAcrossBuckets(used, cost, balance);
-  if (!split.ok) return;
+  if (!split.ok) {
+    return { creditBalanceAfter: null, fromFree: 0, fromPurchased: 0 };
+  }
 
   await prisma.$transaction(async (tx) => {
     if (split.fromFree > 0) {
@@ -107,5 +117,29 @@ export async function applyGenerationAfterSuccess(
         data: { creditBalance: { decrement: split.fromPurchased } },
       });
     }
+    await tx.creditLedgerEntry.create({
+      data: {
+        userId: opts.appUserId!,
+        kind: "generation",
+        delta: -split.fromPurchased,
+        summary: "Prompt üretimi",
+        meta: JSON.stringify({
+          creditCost: cost,
+          fromDaily: split.fromFree,
+          fromBonus: split.fromPurchased,
+          ...(opts.target ? { target: opts.target } : {}),
+        }),
+      },
+    });
   });
+
+  const u = await prisma.user.findUnique({
+    where: { id: opts.appUserId },
+    select: { creditBalance: true },
+  });
+  return {
+    creditBalanceAfter: u?.creditBalance ?? 0,
+    fromFree: split.fromFree,
+    fromPurchased: split.fromPurchased,
+  };
 }

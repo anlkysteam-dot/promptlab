@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
-import { grantPurchasedCredits } from "@/lib/credits-grant";
+import { grantPurchasedCreditsIdempotent } from "@/lib/credits-grant";
 import { clearPremiumForSubscription, syncUserPremiumFromSubscription } from "@/lib/subscription-sync";
 
 export const runtime = "nodejs";
@@ -40,10 +40,10 @@ export async function POST(req: Request) {
         const sess = event.data.object as Stripe.Checkout.Session;
         if (sess.mode === "payment") {
           const meta = sess.metadata ?? {};
-          if (meta.kind === "credit_pack" && meta.userId && meta.credits) {
+          if (meta.kind === "credit_pack" && meta.userId && meta.credits && sess.id) {
             const credits = parseInt(meta.credits, 10);
             if (Number.isFinite(credits) && credits > 0) {
-              await grantPurchasedCredits(meta.userId, credits);
+              await grantPurchasedCreditsIdempotent(meta.userId, credits, "stripe", sess.id, `+${credits} kredi`);
             }
           }
           break;

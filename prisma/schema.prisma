@@ -64,6 +64,23 @@ model User {
   passwordResetTokens  PasswordResetToken[]
   promptHistories      PromptHistory[]
   promptProjects       PromptProject[]
+  creditLedgerEntries  CreditLedgerEntry[]
+}
+
+/// Kredi hareketleri (satın alma idempotency + üretim harcaması)
+model CreditLedgerEntry {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind        String
+  delta       Int
+  /// stripe:cs_xxx | paddle:txn_xxx — yalnızca satın alma; tekrarlayan webhook’ları engeller
+  externalRef String?  @unique
+  summary     String   @default("")
+  meta        String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
 }
 
 model PasswordResetToken {

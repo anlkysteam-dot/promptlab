@@ -5,7 +5,7 @@ import {
   syncUserPremiumFromPaddleSubscription,
   type PaddleSubscriptionLike,
 } from "@/lib/paddle-subscription-sync";
-import { grantPurchasedCredits } from "@/lib/credits-grant";
+import { grantPurchasedCreditsIdempotent } from "@/lib/credits-grant";
 import { getPaddle } from "@/lib/paddle";
 
 export const runtime = "nodejs";
@@ -79,8 +79,9 @@ export async function POST(req: Request) {
       const raw = event.data as unknown;
       if (raw && typeof raw === "object") {
         const d = raw as Record<string, unknown>;
+        const txnId = typeof d.id === "string" ? d.id : null;
         const cd = d.customData as Record<string, unknown> | null | undefined;
-        if (cd && cd.kind === "credit_pack" && typeof cd.promptlabUserId === "string") {
+        if (txnId && cd && cd.kind === "credit_pack" && typeof cd.promptlabUserId === "string") {
           const creditsRaw = cd.credits;
           const credits =
             typeof creditsRaw === "number"
@@ -89,7 +90,13 @@ export async function POST(req: Request) {
                 ? parseInt(creditsRaw, 10)
                 : NaN;
           if (Number.isFinite(credits) && credits > 0) {
-            await grantPurchasedCredits(cd.promptlabUserId, credits);
+            await grantPurchasedCreditsIdempotent(
+              cd.promptlabUserId,
+              credits,
+              "paddle",
+              txnId,
+              `+${credits} kredi`,
+            );
           }
         }
       }
