@@ -257,225 +257,212 @@ export function ProfileClient({
         </Link>
       </header>
 
-      <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
-        <h2 className="text-sm font-semibold text-[var(--text)]">{tx("Üretim geçmişini dışa aktar", "Export generation history")}</h2>
-        <p className="mt-2 text-xs text-[var(--muted)]">
-          {tx(
-            "Sunucuda saklanan son kayıtlar (en fazla 500) JSON veya Markdown olarak indirilir.",
-            "Up to 500 server-stored records as JSON or Markdown.",
-          )}
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={exportBusy}
-            onClick={() => void handleExportJson()}
-            className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--hover-surface)] disabled:opacity-40"
-          >
-            {exportBusy ? "…" : "JSON"}
-          </button>
-          <button
-            type="button"
-            disabled={exportBusy}
-            onClick={() => void handleExportMarkdown()}
-            className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--hover-surface)] disabled:opacity-40"
-          >
-            {exportBusy ? "…" : "Markdown"}
-          </button>
-        </div>
-      </section>
-
-      <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
-        <h2 className="text-sm font-semibold text-[var(--text)]">{tx("Kullanım", "Usage")}</h2>
-        <div className="mt-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">
-            {tx("Bugün", "Today")}
-          </p>
-          {usage == null ? (
-            <p className="mt-2 text-sm text-[var(--muted)]">…</p>
-          ) : usage.premium ? (
-            <p className="mt-2 text-sm text-[var(--muted)]">
-              {tx("Premium: günlük üretim limiti uygulanmaz.", "Premium: no daily generation limit.")}
+      <div className="grid gap-6 lg:grid-cols-[1fr_320px] lg:items-start">
+        <div className="flex flex-col gap-8">
+          <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+            <h2 className="text-sm font-semibold text-[var(--text)]">{tx("Üretim geçmişini dışa aktar", "Export generation history")}</h2>
+            <p className="mt-2 text-xs text-[var(--muted)]">
+              {tx(
+                "Sunucuda saklanan son kayıtlar (en fazla 500) JSON veya Markdown olarak indirilir.",
+                "Up to 500 server-stored records as JSON or Markdown.",
+              )}
             </p>
-          ) : (
-            <p className="mt-2 text-sm text-[var(--muted)]">
-              <span className="font-medium text-[var(--text)]">
-                {usage.used} / {usage.limit ?? FREE_DAILY_PROMPT_LIMIT}
-              </span>{" "}
-              {tx("dönüşüm (bugün, İstanbul günü)", "generations today (Istanbul day)")}.{" "}
-              {tx("Kalan:", "Remaining:")}{" "}
-              <span className="font-medium text-[var(--text)]">{usage.remaining ?? 0}</span>
-            </p>
-          )}
-        </div>
-        <div className="mt-4 border-t border-[var(--border)] pt-4">
-          {usageSeries == null ? (
-            <p className="text-sm text-[var(--muted)]">…</p>
-          ) : usageSeries.length === 0 ? null : (
-            <ProfileUsageChart days={usageSeries} locale={locale} />
-          )}
-        </div>
-      </section>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={exportBusy}
+                onClick={() => void handleExportJson()}
+                className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--hover-surface)] disabled:opacity-40"
+              >
+                {exportBusy ? "…" : "JSON"}
+              </button>
+              <button
+                type="button"
+                disabled={exportBusy}
+                onClick={() => void handleExportMarkdown()}
+                className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--hover-surface)] disabled:opacity-40"
+              >
+                {exportBusy ? "…" : "Markdown"}
+              </button>
+            </div>
+          </section>
 
-      <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
-        <h2 className="text-sm font-semibold text-[var(--text)]">{tx("Abonelik ve ödeme", "Subscription & billing")}</h2>
-        <dl className="mt-3 space-y-2 text-sm text-[var(--muted)]">
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-[var(--muted)]">{tx("Ödeme altyapısı", "Payment provider")}</dt>
-            <dd className="text-[var(--text)]">{providerLabel}</dd>
-          </div>
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-[var(--muted)]">{tx("Stripe müşteri", "Stripe customer")}</dt>
-            <dd className="font-mono text-xs text-[var(--text)]">
-              {maskId(stripeCustomerId) ?? (hasStripeCustomer ? "…" : "—")}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-[var(--muted)]">{tx("Stripe abonelik", "Stripe subscription")}</dt>
-            <dd className="font-mono text-xs text-[var(--text)]">{maskId(stripeSubscriptionId) ?? "—"}</dd>
-          </div>
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-[var(--muted)]">{tx("Paddle müşteri", "Paddle customer")}</dt>
-            <dd className="font-mono text-xs text-[var(--text)]">
-              {maskId(paddleCustomerId) ?? (hasPaddleCustomer ? "…" : "—")}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-[var(--muted)]">{tx("Paddle abonelik", "Paddle subscription")}</dt>
-            <dd className="font-mono text-xs text-[var(--text)]">{maskId(paddleSubscriptionId) ?? "—"}</dd>
-          </div>
-        </dl>
+          <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+            <h2 className="text-sm font-semibold text-[var(--text)]">{tx("Kullanım", "Usage")}</h2>
+            <div className="mt-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">
+                {tx("Bugün", "Today")}
+              </p>
+              {usage == null ? (
+                <p className="mt-2 text-sm text-[var(--muted)]">…</p>
+              ) : usage.premium ? (
+                <p className="mt-2 text-sm text-[var(--muted)]">
+                  {tx("Premium: günlük üretim limiti uygulanmaz.", "Premium: no daily generation limit.")}
+                </p>
+              ) : (
+                <p className="mt-2 text-sm text-[var(--muted)]">
+                  <span className="font-medium text-[var(--text)]">
+                    {usage.used} / {usage.limit ?? FREE_DAILY_PROMPT_LIMIT}
+                  </span>{" "}
+                  {tx("dönüşüm (bugün, İstanbul günü)", "generations today (Istanbul day)")}.{" "}
+                  {tx("Kalan:", "Remaining:")}{" "}
+                  <span className="font-medium text-[var(--text)]">{usage.remaining ?? 0}</span>
+                </p>
+              )}
+            </div>
+            <div className="mt-4 border-t border-[var(--border)] pt-4">
+              {usageSeries == null ? (
+                <p className="text-sm text-[var(--muted)]">…</p>
+              ) : usageSeries.length === 0 ? null : (
+                <ProfileUsageChart days={usageSeries} locale={locale} />
+              )}
+            </div>
+          </section>
 
-        {isPremium && daysLeft != null ? (
-          <p className="mt-3 text-sm text-[var(--muted)]">
-            {tx("Kalan süre:", "Time remaining:")}{" "}
-            <span className="font-medium text-[var(--text)]">
-              {daysLeft} {tx("gün", "days")}
-            </span>
-            {premiumUntil ? (
-              <span className="ml-1 text-[var(--muted)]">
-                ({premiumUntil.toLocaleDateString(isEn ? "en-US" : "tr-TR")})
-              </span>
-            ) : null}
-          </p>
-        ) : isPremium ? (
-          <p className="mt-3 text-sm text-[var(--muted)]">{tx("Premium aktif.", "Premium is active.")}</p>
-        ) : (
-          <p className="mt-3 text-sm text-[var(--muted)]">
-            {tx("Premium üyeliğin yok.", "You are not on Premium.")}{" "}
-            <Link href="/pricing" className="text-[var(--accent)] hover:underline">
-              {tx("Paketleri gör", "View plans")}
-            </Link>
-          </p>
-        )}
+          <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+            <h2 className="text-sm font-semibold text-[var(--text)]">{tx("Abonelik ve ödeme", "Subscription & billing")}</h2>
+            <dl className="mt-3 space-y-2 text-sm text-[var(--muted)]">
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-[var(--muted)]">{tx("Ödeme altyapısı", "Payment provider")}</dt>
+                <dd className="text-[var(--text)]">{providerLabel}</dd>
+              </div>
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-[var(--muted)]">{tx("Stripe müşteri", "Stripe customer")}</dt>
+                <dd className="font-mono text-xs text-[var(--text)]">
+                  {maskId(stripeCustomerId) ?? (hasStripeCustomer ? "…" : "—")}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-[var(--muted)]">{tx("Stripe abonelik", "Stripe subscription")}</dt>
+                <dd className="font-mono text-xs text-[var(--text)]">{maskId(stripeSubscriptionId) ?? "—"}</dd>
+              </div>
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-[var(--muted)]">{tx("Paddle müşteri", "Paddle customer")}</dt>
+                <dd className="font-mono text-xs text-[var(--text)]">
+                  {maskId(paddleCustomerId) ?? (hasPaddleCustomer ? "…" : "—")}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-[var(--muted)]">{tx("Paddle abonelik", "Paddle subscription")}</dt>
+                <dd className="font-mono text-xs text-[var(--text)]">{maskId(paddleSubscriptionId) ?? "—"}</dd>
+              </div>
+            </dl>
 
-        {portalErr ? (
-          <p className="mt-2 rounded-lg border border-[var(--err-border)] bg-[var(--err-bg)] px-3 py-2 text-sm text-[var(--err-fg)]">
-            {portalErr}
-          </p>
-        ) : null}
-
-        {showPaddlePortal ? (
-          <button
-            type="button"
-            onClick={() => void goPaddlePortal()}
-            disabled={portalLoading}
-            className="mt-3 inline-flex w-full items-center justify-center rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm font-medium text-[var(--text)] hover:bg-[var(--hover-surface)] disabled:opacity-40 sm:w-auto"
-          >
-            {portalLoading
-              ? tx("Açılıyor…", "Opening…")
-              : tx("Aboneliği yönet (Paddle)", "Manage subscription (Paddle)")}
-          </button>
-        ) : null}
-        {showStripePortal ? (
-          <button
-            type="button"
-            onClick={() => void goStripePortal()}
-            disabled={portalLoading}
-            className="mt-3 inline-flex w-full items-center justify-center rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm font-medium text-[var(--text)] hover:bg-[var(--hover-surface)] disabled:opacity-40 sm:w-auto"
-          >
-            {portalLoading
-              ? tx("Açılıyor…", "Opening…")
-              : tx("Aboneliği yönet (fatura / iptal)", "Manage subscription (billing / cancel)")}
-          </button>
-        ) : null}
-        {isPremium && paymentProvider && !showPaddlePortal && !showStripePortal ? (
-          <p className="mt-2 text-xs text-[var(--muted)]">
-            {tx(
-              "Ödeme müşteri kaydı bulunamadı; fatura veya iptal için destekle iletişime geçebilirsin.",
-              "No billing customer on file—contact support for invoices or cancellation.",
+            {isPremium && daysLeft != null ? (
+              <p className="mt-3 text-sm text-[var(--muted)]">
+                {tx("Kalan süre:", "Time remaining:")}{" "}
+                <span className="font-medium text-[var(--text)]">
+                  {daysLeft} {tx("gün", "days")}
+                </span>
+                {premiumUntil ? (
+                  <span className="ml-1 text-[var(--muted)]">
+                    ({premiumUntil.toLocaleDateString(isEn ? "en-US" : "tr-TR")})
+                  </span>
+                ) : null}
+              </p>
+            ) : isPremium ? (
+              <p className="mt-3 text-sm text-[var(--muted)]">{tx("Premium aktif.", "Premium is active.")}</p>
+            ) : (
+              <p className="mt-3 text-sm text-[var(--muted)]">
+                {tx("Premium üyeliğin yok.", "You are not on Premium.")}{" "}
+                <Link href="/pricing" className="text-[var(--accent)] hover:underline">
+                  {tx("Paketleri gör", "View plans")}
+                </Link>
+              </p>
             )}
-          </p>
-        ) : null}
-      </section>
 
-      <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
-        <h2 className="text-sm font-semibold text-[var(--text)]">{tx("Görünüm", "Appearance")}</h2>
-        <p className="mt-2 text-xs text-[var(--muted)]">
-          {tx(
-            "Açık veya koyu tema; tercih bu tarayıcıda saklanır.",
-            "Light or dark theme; preference is saved in this browser.",
-          )}
-        </p>
-        <div className="mt-3 max-w-xs">
-          <ThemePreferenceSelect locale={locale} />
+            {portalErr ? (
+              <p className="mt-2 rounded-lg border border-[var(--err-border)] bg-[var(--err-bg)] px-3 py-2 text-sm text-[var(--err-fg)]">
+                {portalErr}
+              </p>
+            ) : null}
+
+            {showPaddlePortal ? (
+              <button
+                type="button"
+                onClick={() => void goPaddlePortal()}
+                disabled={portalLoading}
+                className="mt-3 inline-flex w-full items-center justify-center rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm font-medium text-[var(--text)] hover:bg-[var(--hover-surface)] disabled:opacity-40 sm:w-auto"
+              >
+                {portalLoading
+                  ? tx("Açılıyor…", "Opening…")
+                  : tx("Aboneliği yönet (Paddle)", "Manage subscription (Paddle)")}
+              </button>
+            ) : null}
+            {showStripePortal ? (
+              <button
+                type="button"
+                onClick={() => void goStripePortal()}
+                disabled={portalLoading}
+                className="mt-3 inline-flex w-full items-center justify-center rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm font-medium text-[var(--text)] hover:bg-[var(--hover-surface)] disabled:opacity-40 sm:w-auto"
+              >
+                {portalLoading
+                  ? tx("Açılıyor…", "Opening…")
+                  : tx("Aboneliği yönet (fatura / iptal)", "Manage subscription (billing / cancel)")}
+              </button>
+            ) : null}
+            {isPremium && paymentProvider && !showPaddlePortal && !showStripePortal ? (
+              <p className="mt-2 text-xs text-[var(--muted)]">
+                {tx(
+                  "Ödeme müşteri kaydı bulunamadı; fatura veya iptal için destekle iletişime geçebilirsin.",
+                  "No billing customer on file—contact support for invoices or cancellation.",
+                )}
+              </p>
+            ) : null}
+          </section>
+
+          <RecentGenerationsPanel locale={locale} labPath={homePath} defaultOpen />
         </div>
-      </section>
 
-      <p className="text-xs text-[var(--muted)]">
-        {tx("Lab’da klavye kısayolları için", "On the Lab, press")}{" "}
-        <kbd className="rounded border border-[var(--border)] bg-[var(--bg)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--text)]">?</kbd>{" "}
-        {tx("tuşuna bas.", "for shortcuts.")}
-      </p>
+        <aside className="lg:sticky lg:top-6">
+          <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+            <h2 className="text-sm font-semibold text-[var(--text)]">{tx("Ayarlar", "Settings")}</h2>
 
-      <RecentGenerationsPanel locale={locale} labPath={homePath} defaultOpen />
+            <div className="mt-4 space-y-4">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">{tx("Tema", "Theme")}</p>
+                <div className="mt-2 max-w-xs">
+                  <ThemePreferenceSelect locale={locale} />
+                </div>
+              </div>
 
-      <details className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium text-[var(--text)] [&::-webkit-details-marker]:hidden">
-          {tx("Ayarlar", "Settings")}
-          <span className="text-xs font-normal text-[var(--muted)]">{tx("tema · linkler · çıkış", "theme · links · sign out")}</span>
-        </summary>
-        <div className="mt-4 space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3">
-              <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">{tx("Tema", "Theme")}</p>
-              <div className="mt-2 max-w-xs">
-                <ThemePreferenceSelect locale={locale} />
+              <div className="border-t border-[var(--border)] pt-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">{tx("Linkler", "Links")}</p>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm text-[var(--muted)]">
+                  <Link href="/discover" className="text-[var(--accent)] hover:underline">
+                    {tx("Keşfet", "Discover")}
+                  </Link>
+                  <Link href="/pricing" className="hover:text-[var(--text)] hover:underline">
+                    {tx("Fiyatlandırma", "Pricing")}
+                  </Link>
+                  <Link href={locale === "en" ? "/tr/profil" : "/en/profile"} className="hover:text-[var(--text)] hover:underline">
+                    {locale === "en" ? "TR" : "EN"}
+                  </Link>
+                </div>
+              </div>
+
+              <div className="border-t border-[var(--border)] pt-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">{tx("Çıkış", "Sign out")}</p>
+                <button
+                  type="button"
+                  onClick={() => signOut({ redirectUrl: homePath })}
+                  className="mt-3 inline-flex w-full items-center justify-center rounded-lg border border-[var(--err-border)] bg-[var(--err-bg)] px-4 py-2.5 text-sm font-semibold text-[var(--err-fg)] hover:opacity-95"
+                >
+                  {tx("Çıkış yap", "Sign out")}
+                </button>
+              </div>
+
+              <div className="border-t border-[var(--border)] pt-4">
+                <p className="text-xs text-[var(--muted)]">
+                  {tx("Lab’da kısayollar için", "For shortcuts on the Lab press")}{" "}
+                  <kbd className="rounded border border-[var(--border)] bg-[var(--bg)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--text)]">?</kbd>
+                  .
+                </p>
               </div>
             </div>
-            <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3">
-              <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">{tx("Kısayollar", "Shortcuts")}</p>
-              <p className="mt-2 text-xs text-[var(--muted)]">
-                {tx("Lab’da", "On the Lab, press")}{" "}
-                <kbd className="rounded border border-[var(--border)] bg-[var(--surface)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--text)]">?</kbd>{" "}
-                {tx("ile tüm kısayolları görürsün.", "to see all shortcuts.")}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-[var(--muted)]">
-            <Link href="/discover" className="text-[var(--accent)] hover:underline">
-              {tx("Keşfet", "Discover")}
-            </Link>
-            <Link href="/pricing" className="hover:text-[var(--text)] hover:underline">
-              {tx("Fiyatlandırma", "Pricing")}
-            </Link>
-            <Link href={locale === "en" ? "/tr/profil" : "/en/profile"} className="hover:text-[var(--text)] hover:underline">
-              {locale === "en" ? "TR" : "EN"}
-            </Link>
-          </div>
-
-          <div className="border-t border-[var(--border)] pt-4">
-            <button
-              type="button"
-              onClick={() => signOut({ redirectUrl: homePath })}
-              className="inline-flex w-full items-center justify-center rounded-lg border border-[var(--err-border)] bg-[var(--err-bg)] px-4 py-2.5 text-sm font-semibold text-[var(--err-fg)] hover:opacity-95 sm:w-auto"
-            >
-              {tx("Çıkış yap", "Sign out")}
-            </button>
-          </div>
-        </div>
-      </details>
+          </section>
+        </aside>
+      </div>
     </div>
   );
 }

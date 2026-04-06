@@ -15,7 +15,6 @@ import type { MediaPreset, PromptQualityMode } from "@/lib/prompt-quality";
 import { QUICK_STARTERS, type QuickStarterCategory } from "@/lib/quick-starters";
 import { AI_TARGETS, type AiTargetId } from "@/lib/targets";
 import type { LabFlavor, LabFormat } from "@/lib/lab-presets";
-import { ThemePreferenceSelect } from "@/components/theme-preference-select";
 import { WorkbenchOnboarding } from "@/components/workbench-onboarding";
 import { WorkbenchShortcutsModal } from "@/components/workbench-shortcuts";
 
@@ -605,32 +604,6 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
               {t.login}
             </Link>
           )}
-          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-sm">
-            <ThemePreferenceSelect locale={locale} compact />
-            <Link href="/pricing" className="text-[var(--accent)] hover:underline">
-              {t.pricing}
-            </Link>
-            <Link href="/discover" className="text-[var(--muted)] hover:text-[var(--text)] hover:underline">
-              {tx("Keşfet", "Discover")}
-            </Link>
-            <Link href="/hakkimizda" className="text-[var(--muted)] hover:text-[var(--text)] hover:underline">
-              {t.about}
-            </Link>
-            <button
-              type="button"
-              onClick={() => setShortcutsOpen(true)}
-              className="rounded border border-[var(--border)] px-2 py-0.5 font-mono text-xs text-[var(--muted)] hover:text-[var(--text)]"
-              title={tx("Klavye kısayolları (?)", "Keyboard shortcuts (?)")}
-            >
-              ?
-            </button>
-            <Link href="/tr" className="text-[var(--muted)] hover:text-[var(--text)] hover:underline">
-              TR
-            </Link>
-            <Link href="/en" className="text-[var(--muted)] hover:text-[var(--text)] hover:underline">
-              EN
-            </Link>
-          </div>
         </div>
       </header>
 
