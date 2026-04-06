@@ -1,20 +1,127 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useState } from "react";
+
+type PaymentProvider = "paddle" | "stripe";
 
 type Props = {
   isLoggedIn: boolean;
-  stripeReady: boolean;
+  paymentProvider: PaymentProvider | null;
   isPremium: boolean;
   hasStripeCustomer: boolean;
+  hasPaddleCustomer: boolean;
 };
 
-export function PricingActions({ isLoggedIn, stripeReady, isPremium, hasStripeCustomer }: Props) {
+declare global {
+  interface Window {
+    Paddle?: {
+      Environment: { set: (env: "sandbox" | "production") => void };
+      Initialize: (opts: { token: string }) => void;
+      Checkout: { open: (opts: Record<string, unknown>) => void };
+    };
+  }
+}
+
+function loadPaddleScript(): Promise<void> {
+  if (typeof window === "undefined") return Promise.resolve();
+  if (window.Paddle) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://cdn.paddle.com/paddle/v2/paddle.js";
+    s.async = true;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error("Paddle script yüklenemedi."));
+    document.head.appendChild(s);
+  });
+}
+
+export function PricingActions({
+  isLoggedIn,
+  paymentProvider,
+  isPremium,
+  hasStripeCustomer,
+  hasPaddleCustomer,
+}: Props) {
   const [loading, setLoading] = useState<"checkout" | "portal" | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  async function goCheckout() {
+  const openPaddleCheckoutClient = useCallback(async (transactionId: string) => {
+    const token = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN?.trim();
+    if (!token) {
+      setErr("NEXT_PUBLIC_PADDLE_CLIENT_TOKEN eksik; Paddle ödeme sayfası açılamıyor.");
+      return;
+    }
+    const envRaw = process.env.NEXT_PUBLIC_PADDLE_ENVIRONMENT?.trim().toLowerCase();
+    const paddleEnv: "sandbox" | "production" =
+      envRaw === "production" ? "production" : "sandbox";
+
+    await loadPaddleScript();
+    const P = window.Paddle;
+    if (!P) {
+      setErr("Paddle yüklenemedi.");
+      return;
+    }
+
+    const origin = window.location.origin;
+    P.Environment.set(paddleEnv);
+    P.Initialize({ token });
+    P.Checkout.open({
+      transactionId,
+      settings: {
+        displayMode: "overlay",
+        theme: "dark",
+        successUrl: `${origin}/pricing?paddle=1`,
+      },
+    });
+  }, []);
+
+  async function goPaddleCheckout() {
+    setErr(null);
+    setLoading("checkout");
+    try {
+      const r = await fetch("/api/paddle/checkout", { method: "POST" });
+      const j = (await r.json()) as { url?: string; transactionId?: string; error?: string };
+      if (!r.ok) {
+        setErr(j.error ?? "Ödeme başlatılamadı.");
+        return;
+      }
+      if (j.url) {
+        window.location.href = j.url;
+        return;
+      }
+      if (j.transactionId) {
+        await openPaddleCheckoutClient(j.transactionId);
+        return;
+      }
+      setErr("Paddle yanıtı geçersiz.");
+    } catch {
+      setErr("Ağ hatası.");
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  async function goPaddlePortal() {
+    setErr(null);
+    setLoading("portal");
+    try {
+      const r = await fetch("/api/paddle/portal", { method: "POST" });
+      const j = (await r.json()) as { url?: string; error?: string };
+      if (!r.ok) {
+        setErr(j.error ?? "Portal açılamadı.");
+        return;
+      }
+      if (j.url) window.location.href = j.url;
+      else setErr("Bağlantı alınamadı.");
+    } catch {
+      setErr("Ağ hatası.");
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  async function goStripeCheckout() {
     setErr(null);
     setLoading("checkout");
     try {
@@ -33,7 +140,7 @@ export function PricingActions({ isLoggedIn, stripeReady, isPremium, hasStripeCu
     }
   }
 
-  async function goPortal() {
+  async function goStripePortal() {
     setErr(null);
     setLoading("portal");
     try {
@@ -64,14 +171,21 @@ export function PricingActions({ isLoggedIn, stripeReady, isPremium, hasStripeCu
     );
   }
 
-  if (!stripeReady) {
+  if (!paymentProvider) {
     return (
       <p className="mt-8 rounded-lg border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-        Stripe henüz sunucuda yapılandırılmamış. `.env` içine <code className="text-[var(--text)]">STRIPE_SECRET_KEY</code> ve{" "}
-        <code className="text-[var(--text)]">STRIPE_PRICE_ID_PREMIUM</code> eklenmeli.
+        Ödeme henüz yapılandırılmamış. Sunucuda{" "}
+        <code className="text-[var(--text)]">PADDLE_API_KEY</code> +{" "}
+        <code className="text-[var(--text)]">PADDLE_PRICE_ID_PREMIUM</code> (Paddle Billing) veya Stripe
+        değişkenlerini ekle; ayrıntılar <code className="text-[var(--text)]">.env.example</code>.
       </p>
     );
   }
+
+  const checkoutLabel =
+    paymentProvider === "paddle" ? "Premium’a geç (Paddle)" : "Premium’a geç (Stripe)";
+  const portalLabel =
+    paymentProvider === "paddle" ? "Aboneliği yönet (Paddle)" : "Aboneliği yönet (fatura / iptal)";
 
   return (
     <div className="mt-8 flex flex-col gap-3">
@@ -83,25 +197,47 @@ export function PricingActions({ isLoggedIn, stripeReady, isPremium, hasStripeCu
         </p>
       ) : null}
 
-      {!isPremium ? (
+      {!isPremium && paymentProvider === "paddle" ? (
         <button
           type="button"
-          onClick={() => void goCheckout()}
+          onClick={() => void goPaddleCheckout()}
           disabled={loading !== null}
           className="inline-flex items-center justify-center rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-zinc-900 hover:opacity-90 disabled:opacity-40"
         >
-          {loading === "checkout" ? "Yönlendiriliyor…" : "Premium’a geç (Stripe)"}
+          {loading === "checkout" ? "Yönlendiriliyor…" : checkoutLabel}
         </button>
       ) : null}
 
-      {isPremium && hasStripeCustomer ? (
+      {!isPremium && paymentProvider === "stripe" ? (
         <button
           type="button"
-          onClick={() => void goPortal()}
+          onClick={() => void goStripeCheckout()}
+          disabled={loading !== null}
+          className="inline-flex items-center justify-center rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-zinc-900 hover:opacity-90 disabled:opacity-40"
+        >
+          {loading === "checkout" ? "Yönlendiriliyor…" : checkoutLabel}
+        </button>
+      ) : null}
+
+      {isPremium && paymentProvider === "paddle" && hasPaddleCustomer ? (
+        <button
+          type="button"
+          onClick={() => void goPaddlePortal()}
           disabled={loading !== null}
           className="inline-flex items-center justify-center rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm font-medium text-[var(--text)] hover:bg-white/5 disabled:opacity-40"
         >
-          {loading === "portal" ? "Açılıyor…" : "Aboneliği yönet (fatura / iptal)"}
+          {loading === "portal" ? "Açılıyor…" : portalLabel}
+        </button>
+      ) : null}
+
+      {isPremium && paymentProvider === "stripe" && hasStripeCustomer ? (
+        <button
+          type="button"
+          onClick={() => void goStripePortal()}
+          disabled={loading !== null}
+          className="inline-flex items-center justify-center rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm font-medium text-[var(--text)] hover:bg-white/5 disabled:opacity-40"
+        >
+          {loading === "portal" ? "Açılıyor…" : portalLabel}
         </button>
       ) : null}
     </div>

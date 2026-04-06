@@ -6,10 +6,11 @@ import { useSearchParams } from "next/navigation";
 function Inner() {
   const sp = useSearchParams();
   const success = sp.get("success") === "1";
+  const paddleOk = sp.get("paddle") === "1";
   const canceled = sp.get("canceled") === "1";
 
   const node = useMemo(() => {
-    if (success) {
+    if (success || paddleOk) {
       return (
         <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
           Ödeme tamamlandı. Premium birkaç saniye içinde hesabına yansır; yansımazsa sayfayı yenile.
@@ -24,7 +25,7 @@ function Inner() {
       );
     }
     return null;
-  }, [success, canceled]);
+  }, [success, paddleOk, canceled]);
 
   if (!node) return null;
   return <div className="mb-6">{node}</div>;

@@ -48,11 +48,12 @@
 2. **Environment variables** ekle (Production + Preview):
    - `DATABASE_URL` — Neon **pooled** (Transaction) connection string.
    - `DIRECT_DATABASE_URL` — Neon **direct** (non-pooling) connection string (`prisma migrate deploy` bunu kullanır).
-   - Clerk, Stripe, OpenAI/Groq, `NEXT_PUBLIC_APP_URL` (örn. `https://senin-domain.vercel.app`) vb.
+   - Clerk, Paddle (`PADDLE_API_KEY`, `PADDLE_PRICE_ID_PREMIUM`, `PADDLE_WEBHOOK_SECRET`, `NEXT_PUBLIC_PADDLE_CLIENT_TOKEN`, `NEXT_PUBLIC_PADDLE_ENVIRONMENT`, `PADDLE_ENVIRONMENT`) veya Stripe, OpenAI/Groq, `NEXT_PUBLIC_APP_URL` (örn. `https://senin-domain.vercel.app`) vb.
 3. **Build Command** varsayılan `npm run build` yeterli; script içinde `prisma migrate deploy` vardır.
 4. İlk deploy öncesi veritabanı boş olmalı; migrate tabloları oluşturur.
 5. **Clerk**: Production instance’ta izin verilen origin ve redirect URL’lerine Vercel domain’ini ekle.
-6. **Stripe webhook**: Canlı URL’yi `https://senin-domain/api/stripe/webhook` olarak güncelle.
+6. **Paddle webhook**: Developer tools → Notifications → `https://senin-domain/api/paddle/webhook` (abonelik olaylarını seç).
+7. **Stripe webhook** (kullanıyorsan): `https://senin-domain/api/stripe/webhook`.
 
 ### Neon: pooler + direct (Prisma)
 
@@ -82,5 +83,6 @@ Yerelde tek Postgres (Docker) kullanıyorsan iki değişkene **aynı** URL’yi 
 - [ ] `DATABASE_URL` ve `DIRECT_DATABASE_URL` üretimde set (Neon: pooled + direct)
 - [ ] `npm run build` veya CI’da migrate hatasız
 - [ ] Clerk production keys + domain
-- [ ] Stripe canlı veya test webhook secret güncel
+- [ ] Paddle: `PADDLE_API_KEY`, `PADDLE_PRICE_ID_PREMIUM`, `PADDLE_WEBHOOK_SECRET`, `NEXT_PUBLIC_PADDLE_CLIENT_TOKEN`, `PADDLE_ENVIRONMENT` / `NEXT_PUBLIC_PADDLE_ENVIRONMENT`, webhook URL `.../api/paddle/webhook`
+- [ ] Stripe (kullanıyorsan) webhook secret güncel
 - [ ] `NEXT_PUBLIC_APP_URL` gerçek site adresi

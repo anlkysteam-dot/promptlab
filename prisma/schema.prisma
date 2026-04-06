@@ -53,6 +53,10 @@ model User {
   stripeCustomerId     String? @unique
   /// Aktif abonelik id (sub_...)
   stripeSubscriptionId String? @unique
+  /// Paddle Billing müşteri id (ctm_...)
+  paddleCustomerId     String? @unique
+  /// Paddle abonelik id (sub_...)
+  paddleSubscriptionId String? @unique
   accounts             Account[]
   sessions             Session[]
   passwordResetTokens  PasswordResetToken[]
