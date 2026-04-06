@@ -5,6 +5,7 @@ import {
   syncUserPremiumFromPaddleSubscription,
   type PaddleSubscriptionLike,
 } from "@/lib/paddle-subscription-sync";
+import { grantPurchasedCredits } from "@/lib/credits-grant";
 import { getPaddle } from "@/lib/paddle";
 
 export const runtime = "nodejs";
@@ -74,6 +75,27 @@ export async function POST(req: Request) {
   }
 
   try {
+    if (event.eventType === EventName.TransactionPaid) {
+      const raw = event.data as unknown;
+      if (raw && typeof raw === "object") {
+        const d = raw as Record<string, unknown>;
+        const cd = d.customData as Record<string, unknown> | null | undefined;
+        if (cd && cd.kind === "credit_pack" && typeof cd.promptlabUserId === "string") {
+          const creditsRaw = cd.credits;
+          const credits =
+            typeof creditsRaw === "number"
+              ? creditsRaw
+              : typeof creditsRaw === "string"
+                ? parseInt(creditsRaw, 10)
+                : NaN;
+          if (Number.isFinite(credits) && credits > 0) {
+            await grantPurchasedCredits(cd.promptlabUserId, credits);
+          }
+        }
+      }
+      return NextResponse.json({ received: true });
+    }
+
     if (event.eventType === EventName.SubscriptionCanceled) {
       const sub = asSubscriptionPayload(event.data);
       if (sub) await clearPremiumForPaddleSubscription(sub.id);

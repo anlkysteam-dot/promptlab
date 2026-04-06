@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 
 import { buildSystemPrompt } from "@/lib/build-system-prompt";
 
-import { FREE_DAILY_PROMPT_LIMIT } from "@/lib/constants";
+import { FREE_DAILY_CREDIT_BUDGET } from "@/lib/constants";
 
 import { createLlmClient, getChatModel, getGenerateMode, isMockModeAllowed } from "@/lib/llm-config";
 
@@ -19,7 +19,13 @@ import { buildMockPrompt } from "@/lib/mock-prompt";
 
 import { resolvePremiumForUser } from "@/lib/premium";
 import { buildContinuityContextWithProjectProfiles, buildContinuitySnapshot } from "@/lib/continuity-context";
-import { buildLabPresetBlock, type LabFlavor, type LabFormat } from "@/lib/lab-presets";
+import {
+  buildLabPresetBlock,
+  buildSuggestedParamsBlock,
+  type LabFlavor,
+  type LabFormat,
+  type MidjourneyVersionId,
+} from "@/lib/lab-presets";
 import {
   checklistInstruction,
   inferPromptTemplate,
@@ -33,17 +39,12 @@ import {
 import { AI_TARGETS, type AiTargetId } from "@/lib/targets";
 
 import {
-
-  canUseFreePrompt,
-
+  applyGenerationAfterSuccess,
+  assertGenerationAllowed,
+  generationCreditCost,
   getTodayUsageCount,
-
-  recordSuccessfulPrompt,
-
   subjectKeyFrom,
-
   type UsageSubject,
-
 } from "@/lib/usage";
 
 
@@ -164,8 +165,13 @@ export async function POST(req: Request) {
   const negativePrompt = String((body as { negativePrompt?: string })?.negativePrompt ?? "")
     .trim()
     .slice(0, 600);
-
-
+  const mjVersionRaw = String((body as { mjVersion?: string })?.mjVersion ?? "6");
+  const mjVersion = (
+    ["6", "6.1", "7", "niji6"].includes(mjVersionRaw) ? mjVersionRaw : "6"
+  ) as MidjourneyVersionId;
+  const mjIncludeVersion = Boolean((body as { mjIncludeVersion?: boolean })?.mjIncludeVersion);
+  const mjIncludeAr = Boolean((body as { mjIncludeAr?: boolean })?.mjIncludeAr);
+  const includeSuggestedParams = Boolean((body as { includeSuggestedParams?: boolean })?.includeSuggestedParams);
 
   if (!intent || intent.length > 12_000) {
 
@@ -181,11 +187,24 @@ export async function POST(req: Request) {
 
   }
 
+  const midjourneyCli =
+    target === "midjourney"
+      ? { includeVersion: mjIncludeVersion, version: mjVersion, includeAr: mjIncludeAr }
+      : undefined;
+
   const labPresetBlock = buildLabPresetBlock({
     format: labFormat,
     negativePrompt,
     flavor: labFlavor,
     target,
+    midjourneyCli,
+  });
+
+  const suggestedParamsBlock = buildSuggestedParamsBlock({
+    enabled: includeSuggestedParams,
+    target,
+    flavor: labFlavor,
+    format: labFormat,
   });
 
 
@@ -340,13 +359,16 @@ export async function POST(req: Request) {
 
   const countTowardFreeLimit = mode !== "mock";
 
-
+  const creditCost = generationCreditCost(premium, qualityMode);
 
   if (!premium && countTowardFreeLimit) {
 
     try {
 
-      const gate = await canUseFreePrompt(subjectKey);
+      const gate = await assertGenerationAllowed(subjectKey, creditCost, {
+        premium,
+        appUserId: appUser?.id ?? null,
+      });
 
       if (!gate.ok) {
 
@@ -354,11 +376,13 @@ export async function POST(req: Request) {
 
           {
 
-            error: "Günlük ücretsiz limitine ulaştınız. Premium ile sınırsız kullanım (yakında ödeme ile) veya yarın tekrar deneyin.",
+            error: `Kredi yetersiz (bugün ${gate.used}/${FREE_DAILY_CREDIT_BUDGET} günlük kredi kullanıldı; bu üretim ${creditCost} kredi gerektirir). Satın alınan kredi veya günlük bütçe yetmiyorsa kredi paketi alın, Premium ile günlük tavan kalkar veya yarın tekrar deneyin.`,
 
             used: gate.used,
 
-            limit: FREE_DAILY_PROMPT_LIMIT,
+            limit: FREE_DAILY_CREDIT_BUDGET,
+
+            creditCost,
 
             premium: false,
 
@@ -448,6 +472,7 @@ export async function POST(req: Request) {
       activeProject ? `project_scene_count=${activeProject.scenes.length}` : "project_scene_count=0",
       continuityContext ? "\n[CONTINUITY_CONTEXT]\n" + continuityContext : "",
       labPresetBlock ? "\n\n" + labPresetBlock : "",
+      suggestedParamsBlock ? "\n\n" + suggestedParamsBlock : "",
     ].join("\n");
 
     try {
@@ -496,11 +521,14 @@ export async function POST(req: Request) {
 
     try {
 
-      await recordSuccessfulPrompt(subjectKey);
+      await applyGenerationAfterSuccess(subjectKey, creditCost, {
+        premium,
+        appUserId: appUser?.id ?? null,
+      });
 
     } catch (e) {
 
-      console.error("recordSuccessfulPrompt", e);
+      console.error("applyGenerationAfterSuccess", e);
 
     }
 
@@ -518,7 +546,7 @@ export async function POST(req: Request) {
 
     console.error(e);
 
-    usedAfter = premium ? 0 : FREE_DAILY_PROMPT_LIMIT;
+    usedAfter = premium ? 0 : FREE_DAILY_CREDIT_BUDGET;
 
   }
 
@@ -578,9 +606,11 @@ export async function POST(req: Request) {
 
       used: usedAfter,
 
-      limit: premium ? null : FREE_DAILY_PROMPT_LIMIT,
+      limit: premium ? null : FREE_DAILY_CREDIT_BUDGET,
 
-      remaining: premium ? null : Math.max(0, FREE_DAILY_PROMPT_LIMIT - usedAfter),
+      remaining: premium ? null : Math.max(0, FREE_DAILY_CREDIT_BUDGET - usedAfter),
+
+      creditCost,
 
     },
 

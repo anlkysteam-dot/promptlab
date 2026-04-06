@@ -11,7 +11,9 @@ export function ProfileUsageChart({ days, locale }: { days: DayPoint[]; locale: 
 
   return (
     <div>
-      <p className="text-xs text-[var(--muted)]">{tx("Son 7 gün (İstanbul günü)", "Last 7 days (Istanbul calendar day)")}</p>
+      <p className="text-xs text-[var(--muted)]">
+        {tx("Son 7 gün — kredi kullanımı (İstanbul günü)", "Last 7 days — credit usage (Istanbul calendar day)")}
+      </p>
       <div className="mt-3 flex h-[104px] items-end gap-1.5 sm:gap-2">
         {days.map((d) => {
           const barPx = max > 0 ? Math.round((d.count / max) * CHART_H) : 0;

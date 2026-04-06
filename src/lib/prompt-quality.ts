@@ -75,7 +75,14 @@ export function checklistInstruction(kind: PromptTemplateKind): string {
 
 export function qualityModeInstruction(mode: PromptQualityMode): string {
   if (mode === "advanced") {
-    return "Quality mode: ADVANCED. Be strict and demanding: sharpen constraints, remove ambiguity, and optimize for expert-level output quality. The final prompt MUST be structurally explicit and sectioned (with clear labels), include concrete constraints, and include at least one anti-pattern to avoid (what NOT to do).";
+    return [
+      "Quality mode: ADVANCED.",
+      "Be strict: remove vague adjectives, name measurable outcomes, and prefer imperative, testable constraints.",
+      "The final prompt MUST use a fixed skeleton with labeled sections (e.g. ROLE, OBJECTIVE, CONTEXT, CONSTRAINTS, OUTPUT FORMAT, NEGATIVE / AVOID).",
+      "Each section should be skimmable: short lines or bullets, no long prose paragraphs.",
+      "Include a brief 'Anti-patterns' or 'Do NOT' list (concrete examples of what to avoid).",
+      "End with a single 'Quality checklist:' line (comma-separated) tying constraints to success.",
+    ].join(" ");
   }
   return "Quality mode: NORMAL. Keep the prompt strong but concise and broadly usable.";
 }

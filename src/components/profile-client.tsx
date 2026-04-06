@@ -7,7 +7,7 @@ import { LogoMark } from "@/components/logo-mark";
 import { ProfileUsageChart } from "@/components/profile-usage-chart";
 import { RecentGenerationsPanel } from "@/components/recent-generations-panel";
 import { ThemePreferenceSelect } from "@/components/theme-preference-select";
-import { FREE_DAILY_PROMPT_LIMIT } from "@/lib/constants";
+import { FREE_DAILY_CREDIT_BUDGET } from "@/lib/constants";
 
 type UiLocale = "tr" | "en";
 
@@ -18,6 +18,7 @@ type UsageState = {
   used: number;
   limit: number | null;
   remaining: number | null;
+  creditBalance: number;
 } | null;
 
 type HistoryItem = {
@@ -122,8 +123,9 @@ export function ProfileClient({
           setUsage({
             premium: Boolean(j.premium),
             used: typeof j.used === "number" ? j.used : 0,
-            limit: typeof j.limit === "number" ? j.limit : j.limit === null ? null : FREE_DAILY_PROMPT_LIMIT,
+            limit: typeof j.limit === "number" ? j.limit : j.limit === null ? null : FREE_DAILY_CREDIT_BUDGET,
             remaining: typeof j.remaining === "number" ? j.remaining : j.remaining === null ? null : 0,
+            creditBalance: typeof j.creditBalance === "number" ? j.creditBalance : 0,
           });
         }
       } catch {
@@ -297,17 +299,34 @@ export function ProfileClient({
                 <p className="mt-2 text-sm text-[var(--muted)]">…</p>
               ) : usage.premium ? (
                 <p className="mt-2 text-sm text-[var(--muted)]">
-                  {tx("Premium: günlük üretim limiti uygulanmaz.", "Premium: no daily generation limit.")}
+                  {tx(
+                    "Premium: günlük kredi limiti uygulanmaz (üretim ağırlığı Normal/Advanced ile değişir; bilgi amaçlı gösterilir).",
+                    "Premium: no daily credit cap (per-run weight varies by Normal/Advanced; shown for transparency).",
+                  )}
                 </p>
               ) : (
-                <p className="mt-2 text-sm text-[var(--muted)]">
-                  <span className="font-medium text-[var(--text)]">
-                    {usage.used} / {usage.limit ?? FREE_DAILY_PROMPT_LIMIT}
-                  </span>{" "}
-                  {tx("dönüşüm (bugün, İstanbul günü)", "generations today (Istanbul day)")}.{" "}
-                  {tx("Kalan:", "Remaining:")}{" "}
-                  <span className="font-medium text-[var(--text)]">{usage.remaining ?? 0}</span>
-                </p>
+                <>
+                  <p className="mt-2 text-sm text-[var(--muted)]">
+                    <span className="font-medium text-[var(--text)]">
+                      {usage.used} / {usage.limit ?? FREE_DAILY_CREDIT_BUDGET}
+                    </span>{" "}
+                    {tx("kredi (bugün, İstanbul günü)", "credits today (Istanbul day)")}.{" "}
+                    {tx("Kalan:", "Remaining:")}{" "}
+                    <span className="font-medium text-[var(--text)]">{usage.remaining ?? 0}</span>
+                  </p>
+                  <p className="mt-2 text-sm text-[var(--muted)]">
+                    {tx("Satın alınan bonus kredi:", "Purchased bonus credits:")}{" "}
+                    <span className="font-medium text-[var(--text)]">{usage.creditBalance}</span>
+                  </p>
+                  <p className="mt-2">
+                    <Link
+                      href={isEn ? "/en/credits" : "/tr/kredi"}
+                      className="text-sm font-medium text-[var(--accent)] underline hover:no-underline"
+                    >
+                      {tx("Kredi satın al", "Buy credits")}
+                    </Link>
+                  </p>
+                </>
               )}
             </div>
             <div className="mt-4 border-t border-[var(--border)] pt-4">

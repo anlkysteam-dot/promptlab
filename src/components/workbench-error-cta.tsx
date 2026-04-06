@@ -2,16 +2,19 @@ import Link from "next/link";
 
 type Props = {
   message: string;
+  locale?: "tr" | "en";
 };
 
 /**
  * Hata metnine göre kısa yönlendirme bağlantıları (Premium, Groq, giriş vb.).
  */
-export function WorkbenchErrorCta({ message }: Props) {
+export function WorkbenchErrorCta({ message, locale = "tr" }: Props) {
   const m = message.toLowerCase();
 
+  const creditsHref = locale === "en" ? "/en/credits" : "/tr/kredi";
+
   const showPremium =
-    m.includes("ücretsiz limit") || m.includes("premium") || m.includes("429");
+    m.includes("ücretsiz limit") || m.includes("premium") || m.includes("429") || m.includes("kredi");
   const showGroq = m.includes("groq");
   const showOpenAiBilling = m.includes("openai") && (m.includes("kota") || m.includes("faturalama"));
   const showDb = m.includes("veritabanı") || m.includes("prisma");
@@ -26,6 +29,14 @@ export function WorkbenchErrorCta({ message }: Props) {
           →{" "}
           <Link href="/pricing" className="font-medium text-[var(--accent)] underline hover:no-underline">
             Premium ve limitler
+          </Link>
+        </li>
+      ) : null}
+      {showPremium ? (
+        <li>
+          →{" "}
+          <Link href={creditsHref} className="font-medium text-[var(--accent)] underline hover:no-underline">
+            {locale === "en" ? "Buy credit packs" : "Kredi paketi satın al"}
           </Link>
         </li>
       ) : null}

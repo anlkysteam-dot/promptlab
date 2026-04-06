@@ -49,6 +49,8 @@ model User {
   passwordHash  String?
   isPremium     Boolean   @default(false)
   premiumUntil  DateTime?
+  /// Satın alınan bonus krediler (günlük ücretsiz bütçe yetmezse harcanır)
+  creditBalance Int       @default(0)
   /// Stripe müşteri id (cus_...)
   stripeCustomerId     String? @unique
   /// Aktif abonelik id (sub_...)

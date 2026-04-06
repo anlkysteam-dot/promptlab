@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getAppUser } from "@/lib/app-user";
-import { FREE_DAILY_PROMPT_LIMIT } from "@/lib/constants";
+import { FREE_DAILY_CREDIT_BUDGET } from "@/lib/constants";
 import { resolvePremiumForUser } from "@/lib/premium";
+import { prisma } from "@/lib/prisma";
 import { getTodayUsageCount, subjectKeyFrom, type UsageSubject } from "@/lib/usage";
 
 export async function GET() {
@@ -14,8 +15,9 @@ export async function GET() {
     return NextResponse.json({
       premium: false,
       used: 0,
-      limit: FREE_DAILY_PROMPT_LIMIT,
-      remaining: FREE_DAILY_PROMPT_LIMIT,
+      limit: FREE_DAILY_CREDIT_BUDGET,
+      remaining: FREE_DAILY_CREDIT_BUDGET,
+      creditBalance: 0,
       anonymous: true,
     });
   }
@@ -34,11 +36,21 @@ export async function GET() {
 
   const used = await getTodayUsageCount(subjectKey);
 
+  let creditBalance = 0;
+  if (appUser?.id) {
+    const row = await prisma.user.findUnique({
+      where: { id: appUser.id },
+      select: { creditBalance: true },
+    });
+    creditBalance = row?.creditBalance ?? 0;
+  }
+
   return NextResponse.json({
     premium,
     used,
-    limit: premium ? null : FREE_DAILY_PROMPT_LIMIT,
-    remaining: premium ? null : Math.max(0, FREE_DAILY_PROMPT_LIMIT - used),
+    limit: premium ? null : FREE_DAILY_CREDIT_BUDGET,
+    remaining: premium ? null : Math.max(0, FREE_DAILY_CREDIT_BUDGET - used),
+    creditBalance,
     loggedIn: Boolean(appUser?.id),
   });
 }

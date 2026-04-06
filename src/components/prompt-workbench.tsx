@@ -14,7 +14,9 @@ import { getWorkbenchUsageNote } from "@/lib/workbench-usage-notes";
 import type { MediaPreset, PromptQualityMode } from "@/lib/prompt-quality";
 import { QUICK_STARTERS, type QuickStarterCategory } from "@/lib/quick-starters";
 import { AI_TARGETS, type AiTargetId } from "@/lib/targets";
-import type { LabFlavor, LabFormat } from "@/lib/lab-presets";
+import type { LabFlavor, LabFormat, MidjourneyVersionId } from "@/lib/lab-presets";
+import { generationCreditCost } from "@/lib/usage";
+import { FREE_DAILY_CREDIT_BUDGET } from "@/lib/constants";
 import { WorkbenchOnboarding } from "@/components/workbench-onboarding";
 import { WorkbenchShortcutsModal } from "@/components/workbench-shortcuts";
 
@@ -258,11 +260,26 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
   const [labFormat, setLabFormat] = useState<LabFormat>("");
   const [negativePrompt, setNegativePrompt] = useState("");
   const [labFlavor, setLabFlavor] = useState<LabFlavor>("none");
+  const [mjIncludeVersion, setMjIncludeVersion] = useState(false);
+  const [mjIncludeAr, setMjIncludeAr] = useState(false);
+  const [mjVersion, setMjVersion] = useState<MidjourneyVersionId>("6");
+  const [includeSuggestedParams, setIncludeSuggestedParams] = useState(false);
+  const [dailyUsage, setDailyUsage] = useState<{
+    premium: boolean;
+    used: number;
+    limit: number;
+    remaining: number;
+    creditBalance: number;
+  } | null>(null);
 
   const weeklyEstimate = useMemo(() => getEstimatedWeeklyPromptCount(), []);
   const effectiveTarget = useMemo<AiTargetId>(() => (expertMode ? target : "universal"), [expertMode, target]);
   const targetHint = useMemo(() => getWorkbenchTargetHint(effectiveTarget), [effectiveTarget]);
   const usageNote = useMemo(() => getWorkbenchUsageNote(effectiveTarget), [effectiveTarget]);
+  const creditCostThisRun = useMemo(
+    () => generationCreditCost(dailyUsage?.premium ?? false, qualityMode),
+    [dailyUsage?.premium, qualityMode],
+  );
   const mediaKind = useMemo<"video" | "image" | null>(() => {
     if (VIDEO_TARGETS.includes(effectiveTarget)) return "video";
     if (IMAGE_TARGETS.includes(effectiveTarget)) return "image";
@@ -375,6 +392,43 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
     });
   }, [qualityMode, mediaKind, effectiveTarget]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const r = await fetch("/api/usage", { cache: "no-store" });
+        if (!r.ok || cancelled) return;
+        const j = (await r.json()) as {
+          premium?: boolean;
+          used?: number;
+          limit?: number | null;
+          remaining?: number | null;
+          creditBalance?: number;
+        };
+        if (cancelled) return;
+        setDailyUsage({
+          premium: Boolean(j.premium),
+          used: typeof j.used === "number" ? j.used : 0,
+          limit: typeof j.limit === "number" ? j.limit : FREE_DAILY_CREDIT_BUDGET,
+          remaining: typeof j.remaining === "number" ? j.remaining : 0,
+          creditBalance: typeof j.creditBalance === "number" ? j.creditBalance : 0,
+        });
+      } catch {
+        // no-op
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (effectiveTarget !== "midjourney") {
+      setMjIncludeVersion(false);
+      setMjIncludeAr(false);
+    }
+  }, [effectiveTarget]);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -400,6 +454,10 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           labFormat,
           negativePrompt,
           labFlavor,
+          mjIncludeVersion: effectiveTarget === "midjourney" ? mjIncludeVersion : false,
+          mjIncludeAr: effectiveTarget === "midjourney" ? mjIncludeAr : false,
+          mjVersion: effectiveTarget === "midjourney" ? mjVersion : "6",
+          includeSuggestedParams: expertMode && includeSuggestedParams,
         }),
       });
       const raw = await r.text();
@@ -424,6 +482,27 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
       const promptText = j.prompt ?? "";
       setResult(promptText);
       setResultProvider(j.provider ?? "openai");
+      try {
+        const u = await fetch("/api/usage", { cache: "no-store" });
+        if (u.ok) {
+          const ju = (await u.json()) as {
+            premium?: boolean;
+            used?: number;
+            limit?: number | null;
+            remaining?: number | null;
+            creditBalance?: number;
+          };
+          setDailyUsage({
+            premium: Boolean(ju.premium),
+            used: typeof ju.used === "number" ? ju.used : 0,
+            limit: typeof ju.limit === "number" ? ju.limit : FREE_DAILY_CREDIT_BUDGET,
+            remaining: typeof ju.remaining === "number" ? ju.remaining : 0,
+            creditBalance: typeof ju.creditBalance === "number" ? ju.creditBalance : 0,
+          });
+        }
+      } catch {
+        // no-op
+      }
       if (!user?.id) {
         pushRecentPrompt({
           intent,
@@ -804,6 +883,74 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                 )}
                 className="w-full resize-y rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
               />
+              {effectiveTarget === "midjourney" ? (
+                <div className="mt-3 space-y-2 rounded-lg border border-[var(--border)] bg-[var(--bg)]/50 p-3">
+                  <p className="text-xs font-medium text-[var(--muted)]">
+                    {tx("Midjourney CLI (isteğe bağlı)", "Midjourney CLI (optional)")}
+                  </p>
+                  <p className="text-xs text-[var(--muted)]">
+                    {tx(
+                      "Açıksa modelden tam token (--v, --ar) istenir; PromptLab otomatik yapıştırmaz.",
+                      "When enabled, the model is asked to emit exact tokens; PromptLab does not auto-paste into Midjourney.",
+                    )}
+                  </p>
+                  <label className="flex cursor-pointer items-center gap-2 text-xs text-[var(--text)]">
+                    <input
+                      type="checkbox"
+                      checked={mjIncludeVersion}
+                      onChange={(e) => setMjIncludeVersion(e.target.checked)}
+                      className="rounded border-[var(--border)]"
+                    />
+                    {tx("--v ekle", "Append --v")}
+                  </label>
+                  {mjIncludeVersion ? (
+                    <select
+                      value={mjVersion}
+                      onChange={(e) => setMjVersion(e.target.value as MidjourneyVersionId)}
+                      className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                    >
+                      <option value="6">--v 6</option>
+                      <option value="6.1">--v 6.1</option>
+                      <option value="7">--v 7</option>
+                      <option value="niji6">--niji 6</option>
+                    </select>
+                  ) : null}
+                  <label className="flex cursor-pointer items-center gap-2 text-xs text-[var(--text)]">
+                    <input
+                      type="checkbox"
+                      checked={mjIncludeAr}
+                      onChange={(e) => setMjIncludeAr(e.target.checked)}
+                      className="rounded border-[var(--border)]"
+                    />
+                    {tx(
+                      "--ar ekle (Lab en-boy seçimini kullanır; önce 16:9 vb. seç)",
+                      "Include --ar (uses Lab aspect; pick 16:9 etc. above)",
+                    )}
+                  </label>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {expertMode ? (
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)]/40 p-4">
+              <label className="flex cursor-pointer items-start gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={includeSuggestedParams}
+                  onChange={(e) => setIncludeSuggestedParams(e.target.checked)}
+                  className="mt-0.5 rounded border-[var(--border)]"
+                />
+                <span>
+                  <span className="font-medium text-[var(--text)]">
+                    {tx("Önerilen parametreler satırı", "Suggested parameters line")}
+                  </span>
+                  {tx(
+                    " — hedef ve Lab ile uyumlu başlangıç CLI / alan ipuçları (yönlendirme; otomatik yapıştırılmaz).",
+                    " — target-aware starter hints (guidance only; nothing auto-pasted).",
+                  )}
+                </span>
+              </label>
             </div>
           ) : null}
 
@@ -977,11 +1124,46 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
             <p className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
               {qualityMode === "advanced"
                 ? tx(
-                    "Daha sıkı kısıtlar ve net çıktı beklentisiyle daha güçlü prompt üretir.",
-                    "Generates stronger prompts with stricter constraints and clearer output expectations.",
+                    "Daha sıkı kısıtlar, bölümlendirilmiş çıktı ve net kurallarla daha okunaklı prompt üretir.",
+                    "Produces more readable prompts with stricter constraints, sections, and explicit rules.",
                   )
                 : tx("Hızlı ve dengeli bir kalite seviyesi sunar.", "Provides a fast and balanced quality level.")}
             </p>
+            <p className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
+              {dailyUsage?.premium
+                ? tx(
+                    `Premium: bu üretim ${creditCostThisRun} kredi ağırlığında (günlük limit yok).`,
+                    `Premium: this run weighs ${creditCostThisRun} credits (no daily cap).`,
+                  )
+                : tx(
+                    `Ücretsiz: bu üretim ${creditCostThisRun} kredi harcar (günlük bütçe ${FREE_DAILY_CREDIT_BUDGET} kredi).`,
+                    `Free: this run uses ${creditCostThisRun} credits (daily budget ${FREE_DAILY_CREDIT_BUDGET} credits).`,
+                  )}
+              {dailyUsage && !dailyUsage.premium ? (
+                <>
+                  {" "}
+                  {tx("Kalan:", "Remaining:")}{" "}
+                  <span className="font-medium text-[var(--text)]">{dailyUsage.remaining}</span>
+                  {dailyUsage.creditBalance > 0 ? (
+                    <>
+                      {" "}
+                      · {tx("Bonus:", "Bonus:")}{" "}
+                      <span className="font-medium text-[var(--text)]">{dailyUsage.creditBalance}</span>
+                    </>
+                  ) : null}
+                </>
+              ) : null}
+            </p>
+            {user?.id && !dailyUsage?.premium ? (
+              <p className="mt-1 text-xs">
+                <Link
+                  href={isEn ? "/en/credits" : "/tr/kredi"}
+                  className="text-[var(--accent)] underline decoration-[var(--accent)]/40 underline-offset-2 hover:decoration-[var(--accent)]"
+                >
+                  {tx("Kredi satın al", "Buy credits")}
+                </Link>
+              </p>
+            ) : null}
             {mediaKind && qualityMode === "normal" ? (
               <p className="mt-2 text-xs text-[var(--muted)]">
                 {tx("Video/görsel için preset seçenekleri", "Preset options for video/image")}{" "}
@@ -1097,7 +1279,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           {error ? (
             <div className="rounded-lg border border-[var(--warn-border)] bg-[var(--warn-bg)] px-3 py-2 text-sm text-[var(--warn-fg)]">
               <p>{error}</p>
-              <WorkbenchErrorCta message={error} />
+              <WorkbenchErrorCta message={error} locale={locale} />
             </div>
           ) : null}
 
@@ -1280,6 +1462,14 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
         <p className="text-sm text-[var(--muted)]">
           <Link href="/hakkimizda" className="text-[var(--text)] hover:underline">
             {t.about}
+          </Link>
+          <span className="mx-2 text-[var(--border)]">·</span>
+          <Link href={locale === "en" ? "/en/faq" : "/tr/sss"} className="text-[var(--text)] hover:underline">
+            {tx("SSS", "FAQ")}
+          </Link>
+          <span className="mx-2 text-[var(--border)]">·</span>
+          <Link href={locale === "en" ? "/en/credits" : "/tr/kredi"} className="text-[var(--text)] hover:underline">
+            {tx("Kredi al", "Buy credits")}
           </Link>
           <span className="mx-2 text-[var(--border)]">·</span>
           <Link href="/gizlilik" className="text-[var(--text)] hover:underline">

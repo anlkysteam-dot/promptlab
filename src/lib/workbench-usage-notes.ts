@@ -13,7 +13,7 @@ const NOTES: Record<AiTargetId, string> = {
   copilot:
     "Copilot / IDE içinde ilgili dosyayı açık tut ve bu metni yorum veya sohbet alanına yapıştır; dil ve çatıyı yukarıda belirttiysen bağlamı koru.",
   midjourney:
-    "Midjourney’de /imagine veya eşdeğer alana ana betimlemeyi yapıştır; parametreleri (--ar, --style) platformda sonradan ekleyebilirsin.",
+    "Midjourney’de /imagine alanına metni yapıştır; PromptLab otomatik --v/--ar eklemez — istersen Lab’da seçtiğin CLI ipuçları model çıktısına yansır, son kontrol sende.",
   stable_diffusion:
     "SDXL / A1111 / ComfyUI tarafında pozitif/negatif prompt alanlarına böl; ağırlık parantezleri veya (etiket:1.2) gibi kullanım araçlarına göre değişir.",
   dalle:

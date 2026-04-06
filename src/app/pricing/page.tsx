@@ -3,6 +3,8 @@ import { getAppUser } from "@/lib/app-user";
 import { PricingActions } from "@/components/pricing-actions";
 import { PricingBanners } from "@/components/pricing-banners";
 import { prisma } from "@/lib/prisma";
+import { CreditPurchaseClient } from "@/components/credit-purchase-client";
+import { getCreditCheckoutProvider, resolveCreditPacks } from "@/lib/credit-packs";
 import { isPaddleConfigured } from "@/lib/paddle";
 
 export default async function PricingPage() {
@@ -25,6 +27,9 @@ export default async function PricingPage() {
   );
 
   const paymentProvider = paddleReady ? "paddle" : stripeReady ? "stripe" : null;
+
+  const creditPacks = resolveCreditPacks();
+  const creditPaymentProvider = getCreditCheckoutProvider();
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-16">
@@ -91,6 +96,22 @@ export default async function PricingPage() {
           hasStripeCustomer={Boolean(user?.stripeCustomerId)}
           hasPaddleCustomer={Boolean(user?.paddleCustomerId)}
         />
+      </section>
+
+      <section className="mt-10 rounded-2xl border border-[var(--border)] bg-[var(--surface)]/70 p-5 md:p-6">
+        <h2 className="text-lg font-semibold text-[var(--text)]">Ek kredi paketleri</h2>
+        <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]">
+          Günlük ücretsiz bütçeni aştığında, abonelik almadan bonus kredi satın alabilirsin. Krediler hesabında kalır; günlük
+          kota bittiğinde veya tek seferde maliyet günlük kalanından fazlaysa kullanılır.
+        </p>
+        <div className="mt-6">
+          <CreditPurchaseClient
+            locale="tr"
+            paymentProvider={creditPaymentProvider}
+            packs={creditPacks}
+            variant="embed"
+          />
+        </div>
       </section>
 
     </div>
