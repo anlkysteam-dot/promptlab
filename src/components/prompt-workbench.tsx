@@ -16,11 +16,52 @@ import {
 } from "@/lib/workbench-recent";
 import { getWorkbenchTargetHint } from "@/lib/workbench-target-hints";
 import { getWorkbenchUsageNote } from "@/lib/workbench-usage-notes";
-import type { PromptQualityMode } from "@/lib/prompt-quality";
-import { QUICK_STARTERS } from "@/lib/quick-starters";
+import type { MediaPreset, PromptQualityMode } from "@/lib/prompt-quality";
+import { QUICK_STARTERS, type QuickStarterCategory } from "@/lib/quick-starters";
 import { AI_TARGETS, type AiTargetId } from "@/lib/targets";
 
 const CHATGPT_URL = "https://chatgpt.com";
+const VIDEO_TARGETS: AiTargetId[] = ["runway", "veo", "sora", "kling", "pika"];
+const IMAGE_TARGETS: AiTargetId[] = ["midjourney", "dalle"];
+const MEDIA_PRESET_OPTIONS: Array<{ value: MediaPreset; label: string; kind: "video" | "image" | "all" }> = [
+  { value: "none", label: "Yok (genel medya kalitesi)", kind: "all" },
+  { value: "video_ad_vertical", label: "Video: Dikey reklam (9:16)", kind: "video" },
+  { value: "video_cinematic_short", label: "Video: Sinematik kısa film", kind: "video" },
+  { value: "video_product_demo", label: "Video: Ürün demo", kind: "video" },
+  { value: "video_storyboard", label: "Video: Storyboard formatı", kind: "video" },
+  { value: "image_product_packshot", label: "Görsel: Ürün packshot", kind: "image" },
+  { value: "image_social_ad", label: "Görsel: Sosyal medya reklamı", kind: "image" },
+  { value: "image_concept_art", label: "Görsel: Concept art", kind: "image" },
+  { value: "image_logo_direction", label: "Görsel: Logo yönü", kind: "image" },
+];
+type StarterCategory = "all" | QuickStarterCategory;
+
+const STARTER_CATEGORY_LABELS: Record<StarterCategory, string> = {
+  all: "✨ Tümü",
+  content: "📝 İçerik",
+  email: "📧 E-posta",
+  coding: "💻 Kod",
+  presentation: "📊 Sunum",
+  video: "🎬 Video",
+  image: "🖼️ Görsel",
+};
+
+function defaultMediaPresetForTarget(target: AiTargetId): MediaPreset {
+  switch (target) {
+    case "runway":
+    case "kling":
+    case "pika":
+      return "video_ad_vertical";
+    case "veo":
+    case "sora":
+      return "video_cinematic_short";
+    case "midjourney":
+    case "dalle":
+      return "image_social_ad";
+    default:
+      return "none";
+  }
+}
 
 function ClipboardIcon({ className }: { className?: string }) {
   return (
@@ -52,6 +93,23 @@ function ResultSkeleton() {
 }
 
 type OutputMode = "prompt-only" | "with-tip";
+type ProjectItem = {
+  id: string;
+  title: string;
+  target: AiTargetId;
+  characterProfile: string;
+  styleProfile: string;
+  sceneCount: number;
+  updatedAt: string;
+};
+type SceneItem = {
+  id: string;
+  sceneNo: number;
+  userInput: string;
+  generatedPrompt: string;
+  continuitySnapshot: string | null;
+  createdAt: string;
+};
 
 export function PromptWorkbench() {
   const { user, isLoaded } = useUser();
@@ -69,14 +127,78 @@ export function PromptWorkbench() {
   const [copied, setCopied] = useState(false);
   const [outputMode, setOutputMode] = useState<OutputMode>("prompt-only");
   const [qualityMode, setQualityMode] = useState<PromptQualityMode>("normal");
+  const [mediaPreset, setMediaPreset] = useState<MediaPreset>("none");
   const [recentOpen, setRecentOpen] = useState(false);
   const [recentList, setRecentList] = useState<RecentPromptEntry[]>([]);
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
+  const [starterMemory, setStarterMemory] = useState<Record<string, number>>({});
+  const [starterCategory, setStarterCategory] = useState<StarterCategory>("all");
+  const [projects, setProjects] = useState<ProjectItem[]>([]);
+  const [activeProjectId, setActiveProjectId] = useState<string>("");
+  const [projectTitle, setProjectTitle] = useState("");
+  const [projectCharacterProfile, setProjectCharacterProfile] = useState("");
+  const [projectStyleProfile, setProjectStyleProfile] = useState("");
+  const [projectScenes, setProjectScenes] = useState<SceneItem[]>([]);
+  const [projectLoading, setProjectLoading] = useState(false);
 
   const weeklyEstimate = useMemo(() => getEstimatedWeeklyPromptCount(), []);
   const effectiveTarget = useMemo<AiTargetId>(() => (expertMode ? target : "universal"), [expertMode, target]);
   const targetHint = useMemo(() => getWorkbenchTargetHint(effectiveTarget), [effectiveTarget]);
   const usageNote = useMemo(() => getWorkbenchUsageNote(effectiveTarget), [effectiveTarget]);
+  const mediaKind = useMemo<"video" | "image" | null>(() => {
+    if (VIDEO_TARGETS.includes(effectiveTarget)) return "video";
+    if (IMAGE_TARGETS.includes(effectiveTarget)) return "image";
+    return null;
+  }, [effectiveTarget]);
+  const mediaPresetOptions = useMemo(
+    () =>
+      MEDIA_PRESET_OPTIONS.filter((o) => o.kind === "all" || (mediaKind ? o.kind === mediaKind : false)),
+    [mediaKind],
+  );
+  const starterList = useMemo(() => {
+    if (starterCategory === "all") return QUICK_STARTERS;
+    return QUICK_STARTERS.filter((s) => s.category === starterCategory);
+  }, [starterCategory]);
+  const totalStarterVariants = useMemo(
+    () => QUICK_STARTERS.reduce((sum, s) => sum + s.variants.length, 0),
+    [],
+  );
+  const categoryStarterVariants = useMemo(
+    () => starterList.reduce((sum, s) => sum + s.variants.length, 0),
+    [starterList],
+  );
+  const loadProjects = useCallback(async () => {
+    if (!(isLoaded && user?.id)) {
+      setProjects([]);
+      setActiveProjectId("");
+      setProjectScenes([]);
+      return;
+    }
+    try {
+      const r = await fetch("/api/projects", { method: "GET", cache: "no-store" });
+      if (!r.ok) return;
+      const j = (await r.json()) as { items?: ProjectItem[] };
+      const items = Array.isArray(j.items) ? j.items : [];
+      setProjects(items);
+      setActiveProjectId((prev) => (prev && items.some((p) => p.id === prev) ? prev : items[0]?.id ?? ""));
+    } catch {
+      // no-op
+    }
+  }, [isLoaded, user?.id]);
+  const loadProjectScenes = useCallback(async (projectId: string) => {
+    if (!projectId) {
+      setProjectScenes([]);
+      return;
+    }
+    try {
+      const r = await fetch(`/api/projects/${projectId}/scenes`, { method: "GET", cache: "no-store" });
+      if (!r.ok) return;
+      const j = (await r.json()) as { items?: SceneItem[] };
+      setProjectScenes(Array.isArray(j.items) ? j.items : []);
+    } catch {
+      // no-op
+    }
+  }, []);
 
   const loadRecent = useCallback(async () => {
     if (isLoaded && user?.id) {
@@ -98,6 +220,27 @@ export function PromptWorkbench() {
     void loadRecent();
   }, [loadRecent]);
 
+  useEffect(() => {
+    void loadProjects();
+  }, [loadProjects]);
+
+  useEffect(() => {
+    void loadProjectScenes(activeProjectId);
+  }, [activeProjectId, loadProjectScenes]);
+
+  useEffect(() => {
+    if (!mediaPresetOptions.some((o) => o.value === mediaPreset)) {
+      setMediaPreset("none");
+    }
+  }, [mediaPreset, mediaPresetOptions]);
+
+  useEffect(() => {
+    if (qualityMode !== "advanced") return;
+    if (!mediaKind) return;
+    if (mediaPreset !== "none") return;
+    setMediaPreset(defaultMediaPresetForTarget(effectiveTarget));
+  }, [qualityMode, mediaKind, mediaPreset, effectiveTarget]);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -110,7 +253,16 @@ export function PromptWorkbench() {
       const r = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ intent: payload, target: effectiveTarget, topic, tone, audience, qualityMode }),
+        body: JSON.stringify({
+          intent: payload,
+          target: effectiveTarget,
+          topic,
+          tone,
+          audience,
+          qualityMode,
+          mediaPreset,
+          projectId: activeProjectId || undefined,
+        }),
       });
       const raw = await r.text();
       let j: { prompt?: string; error?: string; provider?: "openai" | "groq" | "mock" } = {};
@@ -140,10 +292,44 @@ export function PromptWorkbench() {
         });
       }
       await loadRecent();
+      if (user?.id) {
+        await loadProjects();
+        if (activeProjectId) await loadProjectScenes(activeProjectId);
+      }
     } catch {
       setError("Ağ hatası. Bağlantını kontrol et.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function createProject() {
+    const cleanTitle = projectTitle.trim();
+    if (!cleanTitle) return;
+    setProjectLoading(true);
+    try {
+      const r = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: cleanTitle,
+          target: effectiveTarget,
+          characterProfile: projectCharacterProfile,
+          styleProfile: projectStyleProfile,
+        }),
+      });
+      if (!r.ok) return;
+      const j = (await r.json()) as { id?: string };
+      setProjectTitle("");
+      setProjectCharacterProfile("");
+      setProjectStyleProfile("");
+      await loadProjects();
+      if (j.id) {
+        setActiveProjectId(j.id);
+        await loadProjectScenes(j.id);
+      }
+    } finally {
+      setProjectLoading(false);
     }
   }
 
@@ -162,8 +348,23 @@ export function PromptWorkbench() {
     window.open(CHATGPT_URL, "_blank", "noopener,noreferrer");
   }
 
+  function pickStarterVariant(s: (typeof QUICK_STARTERS)[number]): string {
+    const total = s.variants.length;
+    if (total === 0) return "";
+    const prev = starterMemory[s.id];
+    if (total === 1) return s.variants[0];
+    let idx = Math.floor(Math.random() * total);
+    if (typeof prev === "number" && idx === prev) {
+      idx = (idx + 1 + Math.floor(Math.random() * (total - 1))) % total;
+    }
+    setStarterMemory((m) => ({ ...m, [s.id]: idx }));
+    return s.variants[idx];
+  }
+
   function applyStarter(s: (typeof QUICK_STARTERS)[number]) {
-    setIntent(s.text);
+    const variant = pickStarterVariant(s);
+    if (!variant) return;
+    setIntent(variant);
     setTarget(s.target);
     setExpertMode(s.target !== "universal");
     setTopic("");
@@ -225,6 +426,10 @@ export function PromptWorkbench() {
   const filteredRecent = useMemo(
     () => (showOnlyFavorites ? recentList.filter((x) => x.isFavorite) : recentList),
     [recentList, showOnlyFavorites],
+  );
+  const activeProject = useMemo(
+    () => projects.find((p) => p.id === activeProjectId) ?? null,
+    [projects, activeProjectId],
   );
 
   return (
@@ -298,11 +503,39 @@ export function PromptWorkbench() {
 
       <main className="flex flex-col gap-8">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">Popüler — hızlı başlat</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">Hızlı başlat</p>
+          <p className="mt-1 text-xs text-[var(--muted)]">
+            Aynı butona her tıklamada o kategoriye ait farklı bir örnek gelir.
+          </p>
+          <p className="mt-1 text-xs text-[var(--muted)]">
+            Hazır senaryo havuzu:{" "}
+            <span className="font-medium text-[var(--text)]">
+              {starterCategory === "all" ? totalStarterVariants : categoryStarterVariants}
+            </span>{" "}
+            farklı prompt başlangıcı.
+          </p>
+          <div className="sticky top-2 z-20 mt-2 -mx-2 rounded-xl border border-[var(--border)] bg-[var(--surface)]/95 px-2 py-2 backdrop-blur">
+            <div className="flex flex-wrap gap-2">
+              {(Object.keys(STARTER_CATEGORY_LABELS) as StarterCategory[]).map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setStarterCategory(cat)}
+                  className={`rounded-full border px-3 py-1 text-xs transition ${
+                    starterCategory === cat
+                      ? "border-[var(--brand-lab)] bg-[var(--brand-lab-dim)] text-[var(--brand-lab)]"
+                      : "border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]"
+                  }`}
+                >
+                  {STARTER_CATEGORY_LABELS[cat]}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="mt-2 flex flex-wrap gap-2">
-            {QUICK_STARTERS.map((s) => (
+            {starterList.map((s) => (
               <button
-                key={s.label}
+                key={s.id}
                 type="button"
                 onClick={() => applyStarter(s)}
                 className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--text)] transition hover:border-[var(--brand-lab)] hover:bg-[var(--brand-lab-dim)] sm:text-sm"
@@ -310,6 +543,13 @@ export function PromptWorkbench() {
                 {s.label}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={() => applyStarter(starterList[Math.floor(Math.random() * starterList.length)] ?? QUICK_STARTERS[0])}
+              className="rounded-full border border-dashed border-[var(--accent)] bg-transparent px-3 py-1.5 text-xs font-medium text-[var(--accent)] transition hover:bg-[var(--brand-lab-dim)] sm:text-sm"
+            >
+              Bana rastgele örnek ver
+            </button>
           </div>
         </div>
 
@@ -341,6 +581,74 @@ export function PromptWorkbench() {
             <kbd className="rounded border border-[var(--border)] bg-[var(--bg)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--text)]">Enter</kbd>
             ).
           </p>
+
+          {isLoaded && user?.id ? (
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)]/40 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">Sahne projesi</p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
+                <input
+                  value={projectTitle}
+                  onChange={(e) => setProjectTitle(e.target.value)}
+                  placeholder="Yeni proje adı (örn. Kırmızı paltolu karakter)"
+                  className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                />
+                <button
+                  type="button"
+                  onClick={() => void createProject()}
+                  disabled={projectLoading || !projectTitle.trim()}
+                  className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--text)] hover:bg-white/5 disabled:opacity-40"
+                >
+                  {projectLoading ? "Oluşturuluyor…" : "Yeni proje"}
+                </button>
+              </div>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="project-character-profile" className="mb-1 block text-xs text-[var(--muted)]">
+                    Karakter bilgisi (opsiyonel)
+                  </label>
+                  <textarea
+                    id="project-character-profile"
+                    rows={3}
+                    value={projectCharacterProfile}
+                    onChange={(e) => setProjectCharacterProfile(e.target.value)}
+                    placeholder="Örn: 35 yaş erkek, kırmızı palto, kısa sakal, sakin yüz ifadesi"
+                    className="w-full resize-y rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="project-style-profile" className="mb-1 block text-xs text-[var(--muted)]">
+                    Stil bilgisi (opsiyonel)
+                  </label>
+                  <textarea
+                    id="project-style-profile"
+                    rows={3}
+                    value={projectStyleProfile}
+                    onChange={(e) => setProjectStyleProfile(e.target.value)}
+                    placeholder="Örn: sinematik, soft ışık, doğal renk paleti, elde kamera hissi"
+                    className="w-full resize-y rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                  />
+                </div>
+              </div>
+              <div className="mt-2">
+                <label htmlFor="active-project" className="mb-1 block text-xs text-[var(--muted)]">
+                  Aktif proje (devamlılık hafızası)
+                </label>
+                <select
+                  id="active-project"
+                  value={activeProjectId}
+                  onChange={(e) => setActiveProjectId(e.target.value)}
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                >
+                  <option value="">Proje seçmeden üret (tek seferlik)</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.title} · {p.sceneCount} sahne
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          ) : null}
 
           <div className="flex flex-col gap-2">
             <span className="text-sm font-medium text-[var(--text)]">Hedef / optimizasyon</span>
@@ -421,7 +729,38 @@ export function PromptWorkbench() {
                 ? "Daha sıkı kısıtlar ve net çıktı beklentisiyle daha güçlü prompt üretir."
                 : "Hızlı ve dengeli bir kalite seviyesi sunar."}
             </p>
+            {mediaKind && qualityMode === "normal" ? (
+              <p className="mt-2 text-xs text-[var(--muted)]">
+                Video/görsel için preset seçenekleri <span className="text-[var(--text)]">Advanced</span> modda açılır.
+              </p>
+            ) : null}
           </div>
+
+          {mediaKind && qualityMode === "advanced" ? (
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)]/40 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">
+                {mediaKind === "video" ? "Video şablonu" : "Görsel şablonu"}
+              </p>
+              <label htmlFor="media-preset" className="mt-2 mb-1 block text-xs text-[var(--muted)]">
+                Kalite odak preset seç
+              </label>
+              <select
+                id="media-preset"
+                value={mediaPreset}
+                onChange={(e) => setMediaPreset(e.target.value as MediaPreset)}
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+              >
+                {mediaPresetOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-2 text-xs text-[var(--muted)]">
+                Bu seçim, video/görsel promptunda shot, kompozisyon, ritim ve kalite kurallarını otomatik sıkılaştırır.
+              </p>
+            </div>
+          ) : null}
 
           <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)]/40 p-4">
             <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">İstersen netleştir</p>
@@ -474,22 +813,6 @@ export function PromptWorkbench() {
             </div>
           </div>
 
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">Formu tek tıkla doldur</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {QUICK_STARTERS.map((s) => (
-                <button
-                  key={`form-${s.label}`}
-                  type="button"
-                  onClick={() => applyStarter(s)}
-                  className="rounded-md border border-dashed border-[var(--border)] bg-transparent px-3 py-1.5 text-xs text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--text)] sm:text-sm"
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {error ? (
             <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
               <p>{error}</p>
@@ -505,6 +828,42 @@ export function PromptWorkbench() {
             {loading ? "Oluşturuluyor…" : "Profesyonel prompt oluştur"}
           </button>
         </form>
+
+        {isLoaded && user?.id && activeProject ? (
+          <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-[var(--text)]">
+                Sahne akışı · {activeProject.title}
+              </h3>
+              <span className="text-xs text-[var(--muted)]">{projectScenes.length} sahne</span>
+            </div>
+            {projectScenes.length === 0 ? (
+              <p className="text-xs text-[var(--muted)]">
+                Bu projede henüz sahne yok. İlk üretimden sonra devamlılık hafızası otomatik başlar.
+              </p>
+            ) : (
+              <ol className="space-y-2">
+                {projectScenes.slice(-6).map((scene) => (
+                  <li key={scene.id} className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs">
+                    <p className="font-medium text-[var(--text)]">Sahne {scene.sceneNo}</p>
+                    <p className="mt-1 line-clamp-2 text-[var(--muted)]">{scene.userInput}</p>
+                  </li>
+                ))}
+              </ol>
+            )}
+            {(activeProject.characterProfile || activeProject.styleProfile) && (
+              <div className="mt-3 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs">
+                <p className="font-medium text-[var(--text)]">Proje continuity profili</p>
+                {activeProject.characterProfile ? (
+                  <p className="mt-1 text-[var(--muted)]">Karakter: {activeProject.characterProfile}</p>
+                ) : null}
+                {activeProject.styleProfile ? (
+                  <p className="mt-1 text-[var(--muted)]">Stil: {activeProject.styleProfile}</p>
+                ) : null}
+              </div>
+            )}
+          </section>
+        ) : null}
 
         <details
           className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3"

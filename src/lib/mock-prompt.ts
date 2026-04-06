@@ -15,6 +15,16 @@ const TARGET_LINES: Record<AiTargetId, string> = {
     "Produce a Midjourney-style prompt: vivid comma-separated visual description, style, lighting, aspect ratio hint; avoid conversational filler.",
   dalle:
     "Produce an image-model prompt: scene, subjects, style, composition, lighting; stay policy-safe.",
+  runway:
+    "Produce a runway-ready video prompt: scene progression, camera movement, subject continuity, and mood in concise cinematic language.",
+  veo:
+    "Produce a Veo-style video prompt with subject continuity, shot-level camera direction, timing hints, and atmosphere details.",
+  sora:
+    "Produce a Sora-oriented video prompt with clear temporal flow, scene transitions, and consistent character/environment traits.",
+  kling:
+    "Produce a Kling-ready cinematic prompt with character continuity, visual style constraints, and movement instructions.",
+  pika:
+    "Produce a Pika-ready short-video prompt including style, camera movement, pacing, and continuity details.",
   generic:
     "Produce a general-purpose prompt: goal, audience, tone, length, and structured output expectations.",
 };

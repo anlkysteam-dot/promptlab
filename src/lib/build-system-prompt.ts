@@ -15,6 +15,16 @@ const TARGET_HINTS: Record<AiTargetId, string> = {
     "Optimize for Midjourney: vivid, comma-separated visual description, style, lighting, aspect hints; no chatty prose.",
   dalle:
     "Optimize for image models: clear scene, subjects, style, composition; avoid policy-violating requests.",
+  runway:
+    "Optimize for text-to-video prompts: include shot list, camera motion, scene transitions, duration, fps/style cues, and continuity constraints.",
+  veo:
+    "Optimize for Veo-style video generation: cinematic scene description, camera behavior, timing, and consistency across shots.",
+  sora:
+    "Optimize for Sora-like text-to-video: physically coherent scene instructions, temporal flow, camera movement, and realistic continuity.",
+  kling:
+    "Optimize for Kling-style video generation: concise shot planning, action timing, visual style, and motion continuity.",
+  pika:
+    "Optimize for Pika-style video generation/editing: clear subject/action, shot dynamics, and timing with style constraints.",
   generic:
     "General-purpose prompt: clear goal, audience, tone, length, and output structure.",
 };
@@ -39,7 +49,9 @@ Quality rules:
 7) For coding requests, require robust output: edge cases, error handling, and brief explanation.
 8) For marketing/social requests, require hook, value, CTA, and optional variants.
 9) For image-generation requests, produce strong visual directives (subject, composition, style, lighting, lens/framing cues).
-10) If request is unsafe/illegal/harmful, refuse with one short sentence in English.
+10) For video-generation requests, include temporal structure: shot sequence, camera movement, pacing, transitions, and continuity.
+11) If continuity context exists, preserve previously established character identity, wardrobe/colors, object identity, and environment style unless explicitly changed by the user.
+12) If request is unsafe/illegal/harmful, refuse with one short sentence in English.
 
 Target tool focus:
 ${hint}

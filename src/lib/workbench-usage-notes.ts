@@ -16,6 +16,16 @@ const NOTES: Record<AiTargetId, string> = {
     "Midjourney’de /imagine veya eşdeğer alana ana betimlemeyi yapıştır; parametreleri (--ar, --style) platformda sonradan ekleyebilirsin.",
   dalle:
     "Görsel aracında metin alanına yapıştır; yasaklı içerik istemediğinden emin ol ve gerekirse daha soyut bir sahne tarif et.",
+  runway:
+    "Runway benzeri araçlarda promptu shot list mantığıyla kullan: süre, kamera hareketi ve geçişleri gerekirse iteratif olarak rafine et.",
+  veo:
+    "Veo tarafında aynı promptu sahne/süre akışıyla test et; ilk denemeden sonra kamera hareketi ve tempo satırlarını güncelle.",
+  sora:
+    "Sora benzeri modellerde mekansal tutarlılık için karakter/objeleri sabit isimlerle tanımla; shot geçişlerini net yaz.",
+  kling:
+    "Kling’de kısa denemelerle başlayıp hareket ve ışık satırlarını optimize et; promptu sahne bazlı bölmek kaliteyi artırır.",
+  pika:
+    "Pika’da özellikle motion ve transition satırlarını açık bırak; gerektiğinde ikinci turda stil yerine hareket kısıtlarını sıkılaştır.",
   generic:
     "Bu blok çoğu LLM için uygundur; araç menüsünden model dilini ve güvenlik ayarlarını kontrol etmeyi unutma.",
 };

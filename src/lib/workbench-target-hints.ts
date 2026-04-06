@@ -16,6 +16,16 @@ const HINTS: Record<AiTargetId, string> = {
     "Sahne, ışık, stil ve kompozisyonu virgülle ayırarak yaz; sohbet dili yerine görsel betimlemeye odaklan.",
   dalle:
     "Konu, ortam, sanat stili ve kadrajı net yaz; politikaya duyarlı ifadelerden kaçın.",
+  runway:
+    "Video için sahneleri shot bazlı yaz: süre, kamera hareketi, geçiş ve görsel stil detayını belirt (örn. 6-8 sn, dolly-in, cinematic).",
+  veo:
+    "Video promptunda zaman akışını netleştir: açılış sahnesi, orta aksiyon, kapanış; kamera dili ve atmosferi belirt.",
+  sora:
+    "Gerçekçi video için fiziksel tutarlılık önemli: mekan, karakter, eylem sırası ve kadraj değişimini açıkça yaz.",
+  kling:
+    "Kısa ve güçlü video talimatı ver: özne, hareket, ortam, ışık ve ritim; sahneler arası sürekliliği belirt.",
+  pika:
+    "Pika için motion odaklı tarif yaz: giriş sahnesi, kamera aksiyonu, efekt/transition ve final kare beklentisi.",
   generic:
     "Amaç, hedef kitle, ton ve çıktının yapısını (uzunluk, format) kısaca tanımla.",
 };

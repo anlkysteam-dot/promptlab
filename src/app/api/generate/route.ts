@@ -18,11 +18,14 @@ import { llmFailureMessage } from "@/lib/llm-errors";
 import { buildMockPrompt } from "@/lib/mock-prompt";
 
 import { resolvePremiumForUser } from "@/lib/premium";
+import { buildContinuityContextWithProjectProfiles, buildContinuitySnapshot } from "@/lib/continuity-context";
 import {
   checklistInstruction,
   inferPromptTemplate,
+  mediaPresetInstruction,
   qualityModeInstruction,
   templateInstruction,
+  type MediaPreset,
   type PromptQualityMode,
 } from "@/lib/prompt-quality";
 
@@ -111,6 +114,23 @@ export async function POST(req: Request) {
   const qualityMode = ((body as { qualityMode?: string })?.qualityMode === "advanced"
     ? "advanced"
     : "normal") as PromptQualityMode;
+  const mediaPresetRaw = String((body as { mediaPreset?: string })?.mediaPreset ?? "none");
+  const mediaPreset = (
+    [
+      "none",
+      "video_ad_vertical",
+      "video_cinematic_short",
+      "video_product_demo",
+      "video_storyboard",
+      "image_product_packshot",
+      "image_social_ad",
+      "image_concept_art",
+      "image_logo_direction",
+    ].includes(mediaPresetRaw)
+      ? mediaPresetRaw
+      : "none"
+  ) as MediaPreset;
+  const projectId = String((body as { projectId?: string })?.projectId ?? "").trim();
 
 
 
@@ -199,6 +219,38 @@ export async function POST(req: Request) {
 
 
   const appUser = await getAppUser();
+  if (projectId && !appUser?.id) {
+    return NextResponse.json({ error: "Proje için giriş yapmalısın." }, { status: 401 });
+  }
+
+  let activeProject:
+    | {
+        id: string;
+        target: string;
+        characterProfile: string;
+        styleProfile: string;
+        scenes: Array<{ sceneNo: number; userInput: string; generatedPrompt: string }>;
+      }
+    | null = null;
+  if (projectId && appUser?.id) {
+    activeProject = await prisma.promptProject.findFirst({
+      where: { id: projectId, userId: appUser.id },
+      select: {
+        id: true,
+        target: true,
+        characterProfile: true,
+        styleProfile: true,
+        scenes: {
+          orderBy: { sceneNo: "desc" },
+          take: 6,
+          select: { sceneNo: true, userInput: true, generatedPrompt: true },
+        },
+      },
+    });
+    if (!activeProject) {
+      return NextResponse.json({ error: "Proje bulunamadı veya erişim yok." }, { status: 404 });
+    }
+  }
 
   const jar = await cookies();
 
@@ -328,11 +380,18 @@ export async function POST(req: Request) {
 
     const model = getChatModel(mode);
     const templateKind = inferPromptTemplate(intent, target);
+    const continuityContext = activeProject
+      ? buildContinuityContextWithProjectProfiles(activeProject.scenes, {
+          characterProfile: activeProject.characterProfile,
+          styleProfile: activeProject.styleProfile,
+        })
+      : "";
     const composedUserInput = [
       "Rewrite the following user request into a high-quality English prompt for the selected AI target.",
       "Do not translate literally; optimize for result quality.",
       qualityModeInstruction(qualityMode),
       templateInstruction(templateKind),
+      mediaPresetInstruction(mediaPreset),
       checklistInstruction(templateKind),
       "",
       "[USER_REQUEST_RAW]",
@@ -343,6 +402,10 @@ export async function POST(req: Request) {
       `topic=${topic || "(none)"}`,
       `tone=${tone || "(none)"}`,
       `audience=${audience || "(none)"}`,
+      `project_id=${activeProject?.id ?? "(none)"}`,
+      `project_target=${activeProject?.target ?? "(none)"}`,
+      activeProject ? `project_scene_count=${activeProject.scenes.length}` : "project_scene_count=0",
+      continuityContext ? "\n[CONTINUITY_CONTEXT]\n" + continuityContext : "",
     ].join("\n");
 
     try {
@@ -434,6 +497,28 @@ export async function POST(req: Request) {
     } catch (e) {
       // Geçmiş kaydı başarısız olsa da ana üretim yanıtını düşürmeyelim.
       console.error("promptHistory.create", e);
+    }
+  }
+
+  if (appUser?.id && activeProject) {
+    try {
+      const last = activeProject.scenes[0];
+      const nextSceneNo = (last?.sceneNo ?? 0) + 1;
+      await prisma.promptScene.create({
+        data: {
+          projectId: activeProject.id,
+          sceneNo: nextSceneNo,
+          userInput: intent,
+          generatedPrompt: promptText,
+          continuitySnapshot: buildContinuitySnapshot(promptText),
+        },
+      });
+      await prisma.promptProject.update({
+        where: { id: activeProject.id },
+        data: {},
+      });
+    } catch (e) {
+      console.error("promptScene.create", e);
     }
   }
 

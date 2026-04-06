@@ -61,6 +61,7 @@ model User {
   sessions             Session[]
   passwordResetTokens  PasswordResetToken[]
   promptHistories      PromptHistory[]
+  promptProjects       PromptProject[]
 }
 
 model PasswordResetToken {
@@ -105,4 +106,33 @@ model PromptHistory {
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt(sort: Desc)])
+}
+
+model PromptProject {
+  id        String        @id @default(cuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  target    String
+  characterProfile String @default("")
+  styleProfile     String @default("")
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  scenes    PromptScene[]
+
+  @@index([userId, updatedAt(sort: Desc)])
+}
+
+model PromptScene {
+  id                 String        @id @default(cuid())
+  projectId          String
+  project            PromptProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sceneNo            Int
+  userInput          String
+  generatedPrompt    String
+  continuitySnapshot String?
+  createdAt          DateTime      @default(now())
+
+  @@unique([projectId, sceneNo])
+  @@index([projectId, sceneNo])
 }
