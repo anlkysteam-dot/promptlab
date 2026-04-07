@@ -35,7 +35,7 @@ export default function AuthSignInPage() {
       </Link>
       <h1 className="mt-6 text-2xl font-semibold tracking-tight text-[var(--text)]">Giriş</h1>
       <p className="mt-2 text-sm text-[var(--muted)]">
-        Google, Microsoft, Apple veya e-posta ile devam edebilirsin — ayarlar{" "}
+        E-posta + şifre, e-posta kodu veya sosyal hesaplarla devam edebilirsin — yöntemler{" "}
         <a
           href="https://dashboard.clerk.com"
           className="text-[var(--brand-lab)] hover:underline"

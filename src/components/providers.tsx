@@ -9,7 +9,7 @@ import { ThemeProvider } from "@/contexts/theme-context";
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
-    <ClerkProvider>
+    <ClerkProvider signInUrl="/auth" signUpUrl="/auth/kayit">
       <ThemeProvider>
         <ConsentProvider>
           {children}

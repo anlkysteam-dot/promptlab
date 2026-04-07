@@ -35,7 +35,8 @@ export default function AuthSignUpPage() {
       </Link>
       <h1 className="mt-6 text-2xl font-semibold tracking-tight text-[var(--text)]">Kayıt ol</h1>
       <p className="mt-2 text-sm text-[var(--muted)]">
-        Zaten hesabın var mı?{" "}
+        E-posta + şifre ile hesap oluşturabilir veya desteklenen diğer yöntemlerle devam edebilirsin. Zaten hesabın
+        var mı?{" "}
         <Link href="/auth" className="text-[var(--accent)] hover:underline">
           Giriş yap
         </Link>
