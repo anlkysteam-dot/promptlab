@@ -26,7 +26,8 @@ const features = [
   },
   {
     title: "Director's Desk",
-    description: "Karakter kütüphanesi, stil kartı ve sahne devamlılığı ile tutarlı proje akışı sunar.",
+    description:
+      "Karakter kütüphanesi, stil kartı ve AI scene/character continuity kurallarıyla tutarlı proje akışı sunar.",
   },
 ];
 
@@ -102,8 +103,10 @@ export default function HomePage() {
             <span className="text-[var(--brand-lab)]">AI Scene Continuity</span> ile profesyonel prompt üret.
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-relaxed text-[var(--muted)] sm:text-base">
-            Prompt Lab; fikirlerini hedeflediğin yapay zeka aracına uygun formatta optimize eder. Video, görsel ve
-            içerik üretiminde teknik karmaşayı azaltır, çıktıyı hızlandırır.
+            Prompt Lab bir <strong className="text-[var(--text)]">Video Prompt Generator</strong> ve{" "}
+            <strong className="text-[var(--text)]">AI Prompt Builder</strong> olarak çalışır; fikrini hedeflediğin
+            araca göre optimize eder. En kritik farkı ise <strong className="text-[var(--text)]">character continuity</strong>{" "}
+            (karakter devamlılığı) desteği ile sahneler arasında yüz, stil ve atmosfer tutarlılığını korumasıdır.
           </p>
           <div className="mt-6 flex flex-wrap gap-2">
             <Link
@@ -217,6 +220,10 @@ export default function HomePage() {
       <section className="mt-6 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
         <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">Neden Prompt Lab?</p>
         <h2 className="mt-1 text-lg font-semibold text-[var(--text)]">AI Prompt Generator karşılaştırma tablosu</h2>
+        <p className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
+          Character continuity, AI scene continuity ve üretime hazır video prompt kalitesi açısından Prompt Lab, klasik
+          genel amaçlı araçlara göre daha odaklı bir akış sunar.
+        </p>
         <div className="mt-4 overflow-x-auto rounded-xl border border-[var(--border)]">
           <table className="min-w-full text-left text-xs">
             <thead className="bg-[var(--bg)]/70 text-[var(--muted)]">

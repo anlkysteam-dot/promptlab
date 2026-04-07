@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 };
 
 const contactPlaceholder =
-  process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim() || "İletişim e-postası yayına almadan önce buraya eklenecektir.";
+  process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim() || "support@promptlab.app";
 
 export default function PrivacyPage() {
   return (
@@ -23,17 +23,13 @@ export default function PrivacyPage() {
       <p className="mt-2 text-sm text-[var(--muted)]">
         6698 sayılı Kişisel Verilerin Korunması Kanunu (&quot;KVKK&quot;) uyarınca veri sorumlusu sıfatıyla bilgilendirme.
       </p>
-      <p className="mt-4 rounded-lg border border-[var(--warn-border)] bg-[var(--warn-bg)] p-3 text-xs leading-relaxed text-[var(--warn-fg)]">
-        Bu metin genel bilgilendirme içindir. Şirket unvanı, adres ve resmi temsilci bilgileri yayına almadan önce
-        güncellenmeli; nihai hukuki uygunluk için bir hukuk müşavirinden destek almanız önerilir.
-      </p>
 
       <article className="mt-10 space-y-10 text-sm leading-relaxed text-[var(--muted)]">
         <section id="veri-sorumlusu">
           <h2 className="text-base font-semibold text-[var(--text)]">1. Veri sorumlusu</h2>
           <p className="mt-3">
-            PromptLab hizmetini sunan tüzel/gerçek kişi (&quot;Veri Sorumlusu&quot;) tarafından işletilmektedir. Ticari unvan,
-            adres ve KVKK başvuru kanalları yayına alınırken bu bölüm güncellenecektir.
+            PromptLab (&quot;Platform&quot;), ürün geliştiricisi ekip/işletme tarafından veri sorumlusu sıfatıyla
+            işletilmektedir.
           </p>
           <p className="mt-2">
             <strong className="text-[var(--text)]">İletişim:</strong> {contactPlaceholder}
@@ -48,8 +44,8 @@ export default function PrivacyPage() {
               <strong className="text-[var(--text)]">Kimlik / iletişim:</strong> ad, e-posta (kayıt, giriş, destek).
             </li>
             <li>
-              <strong className="text-[var(--text)]">Müşteri işlem:</strong> hesap oluşturma, oturum, abonelik ve ödeme ile
-              ilgili kayıtlar (ör. Stripe üzerinden işlenen ödeme verileri doğrudan bizde tutulmayabilir).
+              <strong className="text-[var(--text)]">Müşteri işlem:</strong> hesap oluşturma, oturum, abonelik ve ödeme
+              kayıtları (kart verisi doğrudan ödeme altyapısı sağlayıcısında işlenir; PromptLab kart numarası saklamaz).
             </li>
             <li>
               <strong className="text-[var(--text)]">İçerik verisi:</strong> prompt oluşturmak için girdiğin metinler; bu
@@ -58,7 +54,7 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong className="text-[var(--text)]">İşlem güvenliği:</strong> teknik loglar, IP adresi, cihaz/tarayıcı
-              bilgisi (sınırlı süre ve amaçla).
+              bilgisi (sınırlı süre ve güvenlik amacıyla).
             </li>
           </ul>
         </section>
@@ -89,18 +85,18 @@ export default function PrivacyPage() {
             OpenAI ve benzeri), <strong className="text-[var(--text)]">e-posta gönderimi</strong> (ör. Resend),{" "}
             <strong className="text-[var(--text)]">ödeme</strong> (ör. Stripe),{" "}
             <strong className="text-[var(--text)]">kimlik doğrulama</strong> (ör. Google / Microsoft / Apple OAuth) ve{" "}
-            <strong className="text-[var(--text)]">barındırma</strong> sağlayıcılarına, hizmetin ifası için aktarılabilir.
-            Yurt dışına aktarımda KVKK&apos;daki şartlara uygun hareket edilir; sağlayıcıların gizlilik politikalarını
-            incelemeniz önerilir.
+            <strong className="text-[var(--text)]">barındırma</strong> sağlayıcılarına, hizmetin ifası için
+            aktarılabilir. Yurt dışına aktarımda KVKK&apos;daki şartlara uygun hareket edilir; sağlayıcıların gizlilik
+            politikalarını incelemeniz önerilir.
           </p>
         </section>
 
         <section id="saklama">
           <h2 className="text-base font-semibold text-[var(--text)]">5. Saklama süresi</h2>
           <p className="mt-3">
-            Veriler, işleme amacının gerektirdiği süre ve yasal zamanaşımı süreleriyle sınırlı tutulur. Hesabını kapattığında
-            veya silme talebinde bulunduğunda makul süre içinde silme, yok etme veya anonimleştirme için süreçler
-            tanımlanmalıdır (teknik yedekler hariç, makul gecikmeyle).
+            Veriler, işleme amacının gerektirdiği süre ve yasal yükümlülük süreleri kadar saklanır. Hesabını kapattığında
+            veya silme talebi ilettiğinde; teknik yedekleme kopyaları hariç olmak üzere, makul süre içinde silme/yok
+            etme/anonimleştirme işlemleri uygulanır.
           </p>
         </section>
 
@@ -128,8 +124,9 @@ export default function PrivacyPage() {
         <section id="guvenlik">
           <h2 className="text-base font-semibold text-[var(--text)]">7. Güvenlik</h2>
           <p className="mt-3">
-            Uygun teknik ve idari tedbirlerle verilerin güvenliği sağlanmaya çalışılır. İnternet ortamında %100 güvenlik
-            mümkün olmadığından güçlü şifre kullanman ve hesap bilgilerini paylaşmaman önemlidir.
+            PromptLab, kişisel verilerin güvenliğini sağlamak amacıyla erişim kontrolü, loglama, altyapı güvenliği ve
+            güncel yazılım bileşenleri gibi teknik/idarî tedbirler uygular. Ancak internet üzerinden hiçbir sistemin
+            %100 güvenli olmadığı unutulmamalıdır.
           </p>
         </section>
 
@@ -150,8 +147,8 @@ export default function PrivacyPage() {
         <section id="degisiklik">
           <h2 className="text-base font-semibold text-[var(--text)]">9. Değişiklikler</h2>
           <p className="mt-3">
-            Bu metin güncellenebilir. Önemli değişikliklerde site üzerinden duyuru yapılması hedeflenir. Son güncelleme:{" "}
-            <time dateTime="2026-04-05">5 Nisan 2026</time>.
+            Bu metin, hizmet kapsamı veya mevzuat değişikliklerine göre güncellenebilir. Önemli değişikliklerde platform
+            üzerinden duyuru yapılır. Son güncelleme: <time dateTime="2026-04-07">7 Nisan 2026</time>.
           </p>
         </section>
       </article>

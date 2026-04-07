@@ -174,44 +174,88 @@ function enhanceRawIntent(raw: string, isEn: boolean): string {
         ? "Keep it practical and directly usable."
         : "Çıktıyı pratik ve doğrudan kullanılabilir tut.";
 
-  if (isEn) {
-    return `Enhance the following user request into a professional prompt.
+  const shortInput = input.length <= 24 && !/[.,!?;:]/.test(input);
 
-User request (must be preserved and understood):
+  if (shortInput) {
+    if (isEn) {
+      return wantsVideo
+        ? `Create a cinematic video prompt focused on "${input}".
+Scene: rainy night in a modern city, wet asphalt reflecting neon lights, dynamic environment.
+Subject behavior: "${input}" moves fast and confidently through frame.
+Camera: start with wide establishing shot, then low-angle tracking shot, finish with close-up detail.
+Lighting: high-contrast teal/magenta, volumetric haze, realistic reflections.
+Style: realistic, dramatic, production-ready.
+Output format: single polished prompt block for video generation.`
+        : wantsImage
+          ? `Create a high-detail image prompt about "${input}".
+Composition: rule-of-thirds framing, clear subject separation, cinematic depth.
+Environment: urban night mood with subtle atmosphere and reflective textures.
+Lighting: key light + rim light, soft bloom, crisp highlights.
+Style: realistic, premium editorial quality, sharp details.
+Output format: one final image-generation prompt.`
+          : `Write a professional prompt centered on "${input}".
+Role: expert creative strategist.
+Task: generate 3 strong concept variations with clear intent.
+Format: numbered outputs (1-3), each with hook, core message, and CTA.
+Tone: ${tone}.
+Constraint: practical, directly usable, no filler.`;
+    }
+
+    return wantsVideo
+      ? `"${input}" odaklı sinematik bir video promptu yaz.
+Sahne: modern şehirde yağmurlu gece, neon yansımalar, dinamik çevre.
+Özne davranışı: "${input}" kadraj içinde hızlı ve güçlü hareket etsin.
+Kamera: geniş plan açılış, düşük açı takip planı, yakın detay kapanış.
+Işık: yüksek kontrast, teal/mor tonları, hacimsel sis, gerçekçi yansımalar.
+Stil: gerçekçi, dramatik, üretime hazır.
+Çıktı: video üretim aracına doğrudan yapıştırılabilir tek final prompt."`
+      : wantsImage
+        ? `"${input}" için yüksek detaylı bir görsel promptu yaz.
+Kompozisyon: üçler kuralı, net özne ayrımı, sinematik derinlik.
+Ortam: gece şehir atmosferi, yansımalar ve dokulu yüzeyler.
+Işık: ana ışık + rim light, kontrollü parlama, keskin detay.
+Stil: gerçekçi, premium editorial kalite.
+Çıktı: görsel üretim aracına uygun tek final prompt."`
+        : `"${input}" odaklı profesyonel bir prompt yaz.
+Rol: uzman yaratıcı stratejist.
+Görev: net amacı olan 3 güçlü varyasyon üret.
+Format: numaralı çıktı (1-3), her birinde kanca, ana mesaj ve CTA olsun.
+Ton: ${tone}.
+Kısıt: doğrudan kullanılabilir, gereksiz dolgu içermesin."`;
+  }
+
+  if (isEn) {
+    return `Rewrite and improve this request into a production-ready prompt:
 "${input}"
 
 Requirements:
-- Keep the original intent, but make it clearer and more specific.
-- Add missing constraints (target audience, tone, format, success criteria).
+- Preserve intent while increasing clarity and specificity.
+- Add missing details: audience, tone, format, measurable quality bar.
 - Tone: ${tone}
 - ${channelHint}
-- If assumptions are needed, keep them minimal and realistic.
-- Output only the final improved prompt text (no explanation).${
+- Return only the final enhanced prompt text.${
       wantsVideo
-        ? "\n- Include visual direction: shot type, camera movement, lighting, pacing."
+        ? "\n- Include shot plan, camera movement, lighting, pacing, and continuity cues."
         : wantsImage
-          ? "\n- Include visual direction: composition, lighting, style, lens/detail cues."
-          : "\n- Include structure: role, task, format, and measurable output quality."
+          ? "\n- Include composition, style, lighting, lens/detail cues, and quality controls."
+          : "\n- Include role, task, output format, and concise success criteria."
     }`;
   }
 
-  return `Aşağıdaki kullanıcı isteğini profesyonel bir prompta dönüştür.
-
-Kullanıcı isteği (anlamını koru):
+  return `Bu isteği üretime hazır, güçlü bir prompta dönüştür:
 "${input}"
 
 Kurallar:
-- Ana niyeti koru, ama daha net ve uygulanabilir hale getir.
-- Eksik kalan kritik detayları tamamla (hedef kitle, ton, format, başarı ölçütü).
+- Ana niyeti koru, netlik ve uygulanabilirlik ekle.
+- Eksik detayları tamamla: hedef kitle, ton, format, kalite çıtası.
 - Ton: ${tone}
 - ${channelHint}
-- Varsayım gerekiyorsa az ve gerçekçi varsayım yap.
-- Sadece final geliştirilmiş promptu ver (ek açıklama verme).${
+- Sadece final geliştirilmiş promptu ver.${
     wantsVideo
-      ? "\n- Video ise: plan tipi, kamera hareketi, ışık ve ritim detayını ekle."
+      ? "\n- Plan akışı, kamera hareketi, ışık, ritim ve devamlılık ipuçlarını ekle."
       : wantsImage
-        ? "\n- Görsel ise: kompozisyon, ışık, stil ve detay/lens ipuçları ekle."
-        : "\n- Genel içerikte: rol, görev, çıktı formatı ve kalite kriterini netleştir."
+        ? "\n- Kompozisyon, stil, ışık, lens/detay ve kalite kontrol şartlarını ekle."
+        : "\n- Rol, görev, çıktı formatı ve kısa başarı kriterlerini netleştir."
   }`;
 }
 
@@ -780,7 +824,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
     const name = characterNameDraft.trim();
     const profile = projectCharacterProfile.trim();
     if (!name || !profile) return;
-    const finalName = editingCharacterName || name;
+    const finalName = editingCharacterName && editingCharacterName !== "__new__" ? editingCharacterName : name;
     setSavedCharacters((prev) =>
       [{ name: finalName, profile, referenceUrl: characterReferenceDraft.trim() || undefined }, ...prev.filter((c) => c.name !== finalName)].slice(0, 30),
     );
@@ -796,6 +840,8 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
     setProjectCharacterProfile(row.profile);
     setCharacterReferenceDraft(row.referenceUrl ?? "");
     setSelectedCharacterName(name);
+    setCharacterNameDraft("");
+    setEditingCharacterName("");
   }
 
   function removeCharacterFromLibrary(name: string) {
@@ -978,8 +1024,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
     () => projects.find((p) => p.id === activeProjectId) ?? null,
     [projects, activeProjectId],
   );
-  const showCharacterEditor =
-    editingCharacterName !== "" || selectedCharacterName === "" || characterNameDraft.trim().length > 0;
+  const showCharacterEditor = editingCharacterName !== "" || selectedCharacterName === "";
 
   const currentSettingsSnapshot = useMemo<WorkbenchSettingsSnapshot>(
     () => ({
@@ -1789,16 +1834,22 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                     />
                   </div>
                   {!showCharacterEditor ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingCharacterName(selectedCharacterName);
-                        setCharacterNameDraft(selectedCharacterName || tx("Yeni karakter", "New character"));
-                      }}
-                      className="rounded-md border border-dashed border-[var(--border)] px-2.5 py-1 text-xs text-[var(--muted)] hover:text-[var(--text)]"
-                    >
-                      {selectedCharacterName ? tx("✎ Karakteri düzenle", "✎ Edit character") : tx("+ Yeni karakter oluştur", "+ Create new character")}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center rounded-full border border-[var(--brand-lab)]/50 bg-[var(--brand-lab-dim)]/25 px-2.5 py-1 text-xs font-medium text-[var(--text)]">
+                        {selectedCharacterName}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingCharacterName(selectedCharacterName);
+                          setCharacterNameDraft(selectedCharacterName || tx("Yeni karakter", "New character"));
+                        }}
+                        className="app-pressable inline-flex items-center gap-1 rounded-md border border-[var(--border)] px-2.5 py-1 text-xs font-medium text-[var(--muted)] hover:text-[var(--text)]"
+                      >
+                        <span aria-hidden="true">✎</span>
+                        {tx("Düzenle", "Edit")}
+                      </button>
+                    </div>
                   ) : (
                     <>
                       <label htmlFor="project-character-profile" className="mb-1 block text-xs text-[var(--muted)]">
@@ -1853,16 +1904,16 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                               <button
                                 type="button"
                                 onClick={() => startEditingCharacter(c.name)}
-                                className="rounded border border-[var(--border)] px-1.5 py-0.5 text-[10px] text-[var(--muted)] hover:text-[var(--text)]"
+                                className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--muted)] hover:text-[var(--text)]"
                               >
-                                {tx("Düz", "Edit")}
+                                ✎ {tx("Düzenle", "Edit")}
                               </button>
                               <button
                                 type="button"
                                 onClick={() => removeCharacterFromLibrary(c.name)}
-                                className="rounded border border-[var(--err-border)] px-1.5 py-0.5 text-[10px] text-[var(--err-fg)]"
+                                className="rounded border border-[var(--err-border)] px-2 py-1 text-xs text-[var(--err-fg)]"
                               >
-                                {tx("Sil", "Del")}
+                                🗑 {tx("Sil", "Delete")}
                               </button>
                             </div>
                           </div>
