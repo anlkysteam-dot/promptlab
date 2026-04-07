@@ -255,6 +255,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
   const [result, setResult] = useState<string | null>(null);
   const [resultProvider, setResultProvider] = useState<"openai" | "groq" | "mock" | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copiedSceneId, setCopiedSceneId] = useState<string | null>(null);
   const [outputMode, setOutputMode] = useState<OutputMode>("prompt-only");
   const [qualityMode, setQualityMode] = useState<PromptQualityMode>("normal");
   const [outputLanguage, setOutputLanguage] = useState<OutputLanguage>("tr");
@@ -754,6 +755,18 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
     window.open(CHATGPT_URL, "_blank", "noopener,noreferrer");
   }
 
+  async function copyScenePrompt(scene: SceneItem) {
+    const text = scene.generatedPrompt?.trim() || scene.userInput;
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedSceneId(scene.id);
+      window.setTimeout(() => setCopiedSceneId((prev) => (prev === scene.id ? null : prev)), 1800);
+    } catch {
+      setError(tx("Sahne promptu kopyalanamadı.", "Could not copy scene prompt."));
+    }
+  }
+
   function pickStarterVariant(s: (typeof QUICK_STARTERS)[number]): string {
     const total = s.variants.length;
     if (total === 0) return "";
@@ -1185,10 +1198,10 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
             </p>
           </header>
 
-          <main className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_420px] lg:gap-6">
+          <main className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-start lg:gap-6">
 
         {isLoaded && user?.id && showSceneProjectUI ? (
-          <section className="grid gap-3 lg:grid-cols-[260px_1fr]">
+          <section className="grid gap-3 lg:col-start-1 lg:row-start-1 lg:grid-cols-[260px_1fr] lg:self-start">
             <aside className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 lg:sticky lg:top-24 lg:h-fit">
               <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">{tx("Proje menüsü", "Project sidebar")}</p>
               <div className="mt-2 space-y-2">
@@ -1274,11 +1287,11 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
             {loading ? t.creating : tx("Profesyonel prompt oluştur", "Generate professional prompt")}
           </button>
 
-          <details className="group rounded-lg border border-[var(--border)] bg-[var(--bg)]/30 p-3" open={false}>
+          <details className="group rounded-lg border border-[var(--border)] bg-[var(--bg)]/30 p-4" open={false}>
             <summary className="cursor-pointer list-none text-sm font-medium text-[var(--text)]">
               {tx("Ayarlar (tıklayıp aç)", "Settings (click to expand)")}
             </summary>
-            <div className="mt-3 space-y-3">
+            <div className="mt-4 space-y-4">
               <div className="inline-flex rounded-lg border border-[var(--border)] p-0.5 text-xs">
                 <button
                   type="button"
@@ -1681,7 +1694,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
             </div>
           ) : null}
 
-          {settingsTab === "general" ? <div className="flex flex-col gap-2">
+          {settingsTab === "general" ? <div className="flex flex-col gap-3">
             <span className="text-sm font-medium text-[var(--text)]">{tx("Hedef / optimizasyon", "Target / optimization")}</span>
             {!expertMode ? (
               <div className="rounded-lg border border-[var(--brand-lab)]/35 bg-[var(--brand-lab-dim)]/40 px-4 py-3">
@@ -1743,7 +1756,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
             )}
           </div> : null}
 
-          {settingsTab === "general" ? <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)]/40 p-4">
+          {settingsTab === "general" ? <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)]/40 p-5">
             <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">{tx("Prompt kalite modu", "Prompt quality mode")}</p>
             <div className="mt-2 inline-flex rounded-lg border border-[var(--border)] p-0.5 text-xs">
               <button
@@ -1848,7 +1861,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           </div> : null}
 
           {settingsTab === "general" && mediaKind && qualityMode === "advanced" ? (
-            <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)]/40 p-4">
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)]/40 p-5">
               <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">
                 {mediaKind === "video" ? tx("Video şablonu", "Video template") : tx("Görsel şablonu", "Image template")}
               </p>
@@ -1876,7 +1889,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
             </div>
           ) : null}
 
-          {settingsTab === "details" ? <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)]/40 p-4">
+          {settingsTab === "details" ? <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)]/40 p-5">
             <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">{tx("İstersen netleştir", "Optional refinements")}</p>
             <p className="mt-1 text-xs text-[var(--muted)]">
               {tx("Konu, ton ve kitle; isteğe bağlı — sunucuya gönderilen metne eklenir.", "Topic, tone, and audience are optional and appended to the request.")}
@@ -1963,32 +1976,45 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                 {tx("Bu projede henüz sahne yok. İlk üretimden sonra devamlılık hafızası otomatik başlar.", "No scenes yet in this project. Continuity memory starts automatically after the first generation.")}
               </p>
             ) : (
-              <ol className="space-y-2">
+              <div className="-mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-1">
                 {projectScenes.slice(-6).map((scene) => (
-                  <li key={scene.id} className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs">
+                  <article
+                    key={scene.id}
+                    className="w-[220px] shrink-0 snap-start rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs"
+                  >
                     <p className="font-medium text-[var(--text)]">
                       {t.scene} {scene.sceneNo}
                     </p>
                     <p className="mt-1 line-clamp-2 text-[var(--muted)]">{scene.userInput}</p>
-                    <div className="mt-2 flex flex-wrap gap-2">
+                    <div className="mt-2 flex flex-wrap gap-1.5">
                       <button
                         type="button"
                         onClick={() => editScene(scene)}
-                        className="rounded-md border border-[var(--border)] px-2 py-1 text-[11px] text-[var(--text)] hover:bg-[var(--hover-surface)]"
+                        className="rounded-md border border-[var(--border)] px-2 py-1 text-[11px] text-[var(--muted)] hover:bg-[var(--hover-surface)] hover:text-[var(--text)]"
                       >
                         {t.edit}
                       </button>
                       <button
                         type="button"
                         onClick={() => regenerateScene(scene)}
-                        className="rounded-md border border-[var(--brand-lab)] px-2 py-1 text-[11px] text-[var(--brand-lab)] hover:bg-[var(--brand-lab-dim)]"
+                        className="rounded-md border border-[var(--brand-lab)]/45 bg-[var(--brand-lab-dim)]/20 px-2 py-1 text-[11px] text-[var(--brand-lab)] hover:bg-[var(--brand-lab-dim)]/35"
                       >
                         {t.regenerate}
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => void copyScenePrompt(scene)}
+                        className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] px-2 py-1 text-[11px] text-[var(--muted)] hover:text-[var(--text)]"
+                        title={tx("Sahne promptunu kopyala", "Copy scene prompt")}
+                        aria-label={tx("Sahne promptunu kopyala", "Copy scene prompt")}
+                      >
+                        <ClipboardIcon className="h-3.5 w-3.5" />
+                        {copiedSceneId === scene.id ? tx("Kopyalandı", "Copied") : tx("Kopyala", "Copy")}
+                      </button>
                     </div>
-                  </li>
+                  </article>
                 ))}
-              </ol>
+              </div>
             )}
             {projectScenes.length > 0 ? (
               <div className="mt-3 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs text-[var(--muted)]">
@@ -2017,7 +2043,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
 
         <section
           ref={resultSectionRef}
-          className="flex min-h-[280px] flex-col gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:min-h-[320px] sm:p-6 lg:col-start-2 lg:row-start-1 lg:row-span-3 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:shadow-2xl"
+          className="flex min-h-[280px] flex-col gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:min-h-[320px] sm:p-6 lg:col-start-2 lg:row-start-1 lg:row-span-3 lg:self-start lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:shadow-2xl"
           aria-busy={loading}
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2112,9 +2138,10 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                     key={`empty-${s.label}`}
                     type="button"
                     onClick={() => applyStarter(s)}
-                    className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--accent)] hover:bg-[var(--brand-lab-dim)]"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-transparent px-3 py-1.5 text-xs font-medium text-[var(--muted)] hover:border-[var(--accent)]/40 hover:text-[var(--accent)]"
                   >
-                    {tx("Sample:", "Sample:")} {isEn ? QUICK_STARTER_LABELS_EN[s.id] ?? s.label : s.label}
+                    <span aria-hidden="true">✦</span>
+                    {isEn ? QUICK_STARTER_LABELS_EN[s.id] ?? s.label : s.label}
                   </button>
                 ))}
               </div>
@@ -2170,8 +2197,8 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           .
         </p>
       </footer>
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--border)] bg-[var(--surface)]/95 p-3 backdrop-blur lg:left-[max(320px,22vw)] lg:right-6 lg:bottom-4 lg:rounded-xl lg:border">
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--border)] bg-[var(--surface)]/95 p-2.5 backdrop-blur lg:inset-x-auto lg:right-6 lg:bottom-4 lg:w-[420px] lg:max-w-[calc(100vw-2rem)] lg:rounded-xl lg:border">
+        <div className="flex items-center justify-between gap-2">
           <p className="hidden text-xs text-[var(--muted)] sm:block">
             {tx("Bu çalıştırma maliyeti:", "Cost this run:")}{" "}
             <span className="font-semibold text-[var(--text)]">{creditCostThisRun}</span>{" "}
@@ -2181,7 +2208,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
             type="button"
             onClick={submitWorkbenchForm}
             disabled={loading || !intent.trim()}
-            className="app-pressable inline-flex w-full items-center justify-center rounded-lg bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-[var(--on-accent)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
+            className="app-pressable inline-flex w-full items-center justify-center rounded-lg bg-[var(--accent)] px-3.5 py-2.5 text-sm font-semibold text-[var(--on-accent)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
           >
             {loading ? t.creating : tx("Profesyonel prompt oluştur", "Generate professional prompt")}
           </button>
