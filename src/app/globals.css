@@ -101,3 +101,45 @@ html[data-theme="light"] body {
 .animate-credit-toast-in {
   animation: credit-toast-in 0.35s ease-out;
 }
+
+@keyframes app-panel-in {
+  from {
+    transform: translateX(-10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes panel-pop-in {
+  from {
+    transform: translateY(-4px) scale(0.98);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-app-panel-in {
+  animation: app-panel-in 0.28s ease-out both;
+}
+
+.animate-panel-pop-in {
+  animation: panel-pop-in 0.2s ease-out both;
+}
+
+.app-pressable {
+  transition: transform 0.12s ease, box-shadow 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.app-pressable:hover {
+  transform: translateY(-1px);
+}
+
+.app-pressable:active {
+  transform: translateY(0) scale(0.985);
+}

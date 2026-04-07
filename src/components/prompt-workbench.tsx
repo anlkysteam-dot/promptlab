@@ -265,6 +265,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
   const [mjIncludeAr, setMjIncludeAr] = useState(false);
   const [mjVersion, setMjVersion] = useState<MidjourneyVersionId>("6");
   const [includeSuggestedParams, setIncludeSuggestedParams] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [dailyUsage, setDailyUsage] = useState<{
     premium: boolean;
     used: number;
@@ -654,18 +655,9 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
   );
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-8 px-4 py-8 sm:gap-10 sm:px-6 sm:py-10">
+    <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-8 px-4 py-8 sm:gap-10 sm:px-6 sm:py-10">
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {copied ? tx("Prompt panoya kopyalandı.", "Prompt copied to clipboard.") : ""}
-      </div>
-
-      <div className="flex justify-center">
-        <Link
-          href="/pricing"
-          className="text-base font-semibold text-[var(--accent)] underline-offset-4 hover:underline"
-        >
-          {t.pricing}
-        </Link>
       </div>
 
       <div className="rounded-lg border border-[var(--brand-lab-dim)] bg-[var(--brand-lab-dim)] px-3 py-2 text-center text-sm text-[var(--text)]">
@@ -674,133 +666,281 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
         {tx("prompt üretildi", "prompts generated")} — <span className="text-[var(--muted)]">{tx("beta tahmini", "beta estimate")}</span>
       </div>
 
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <LogoMark className="h-10 w-10 shrink-0 sm:h-11 sm:w-11" />
-            <h1 className="flex flex-wrap items-baseline gap-2 text-3xl tracking-tight sm:text-4xl">
-              <span className="font-normal text-[var(--text)]">Prompt</span>
-              <span className="font-bold text-[var(--brand-lab)]">Lab</span>
-              <span
-                className="rounded-full border border-[var(--warn-border)] bg-[var(--warn-bg)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--warn-fg)]"
-                title={tx("Erken erişim — geri bildirimine değer veriyoruz", "Early access — your feedback matters")}
-              >
-                Beta
-              </span>
-            </h1>
-          </div>
-          <p className="max-w-xl text-[15px] leading-relaxed text-[var(--muted)]">
-            {tx(
-              "Ne istediğini kendi cümlelerinle yaz; varsayılan olarak ",
-              "Describe your goal in your own words; by default we use ",
-            )}
-            <strong className="font-medium text-[var(--text)]">{tx("akıllı optimizasyon", "smart optimization")}</strong>{" "}
-            {tx(
-              "(evrensel, Role–Task–Format) ile çalışırız. İstersen uzman modda Midjourney, Copilot veya belirli bir sohbet modeli için ince ayarlı çıktı alırsın.",
-              "(universal, Role–Task–Format). Switch to expert mode for Midjourney, Copilot, or a specific chat model for finer control.",
-            )}
-          </p>
-        </div>
-        <div id="tour-profile" className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
-          {!isLoaded ? (
-            <span className="text-sm text-[var(--muted)]">Oturum…</span>
-          ) : user ? (
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              {dailyUsage ? (
-                <div
-                  className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs text-[var(--muted)]"
-                  title={tx(
-                    "Bugünkü günlük kota ve satın alınan bonus kredi (İstanbul günü).",
-                    "Today’s daily quota and purchased bonus credits (Istanbul day).",
-                  )}
-                >
-                  {dailyUsage.premium ? (
-                    <>
-                      <span className="font-medium text-[var(--accent)]">Premium</span>
-                      <span className="mx-1.5 text-[var(--border)]">·</span>
-                      <span className="tabular-nums text-[var(--text)]">{dailyUsage.creditBalance}</span>{" "}
-                      {tx("bonus kredi", "bonus cr.")}
-                    </>
-                  ) : (
-                    <>
-                      <span className="font-medium text-[var(--text)]">{dailyUsage.remaining}</span>{" "}
-                      {tx("günlük kalan", "daily left")}
-                      <span className="mx-1.5 text-[var(--border)]">·</span>
-                      <span className="tabular-nums font-medium text-[var(--text)]">{dailyUsage.creditBalance}</span>{" "}
-                      {tx("bonus", "bonus")}
-                    </>
-                  )}
+      <div
+        className={`grid gap-6 lg:items-start ${
+          sidebarCollapsed ? "lg:grid-cols-[92px_minmax(0,1fr)]" : "lg:grid-cols-[260px_minmax(0,1fr)]"
+        }`}
+      >
+        <aside className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
+          <div className="animate-app-panel-in rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+            <div className="mb-4 flex items-center gap-2 border-b border-[var(--border)] pb-3">
+              <LogoMark className="h-7 w-7 shrink-0" />
+              {!sidebarCollapsed ? (
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-[var(--text)]">Prompt Lab</p>
+                  <p className="text-[11px] text-[var(--muted)]">{tx("Hızlı panel", "Quick panel")}</p>
                 </div>
               ) : null}
-              <Link
-                href={isEn ? "/en/profile" : "/tr/profil"}
-                className="rounded-md border border-[var(--border)] px-3 py-1.5 text-sm font-medium text-[var(--text)] hover:bg-[var(--hover-surface)]"
+              <button
+                type="button"
+                onClick={() => setSidebarCollapsed((s) => !s)}
+                className="app-pressable ml-auto hidden rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-xs text-[var(--muted)] hover:text-[var(--text)] lg:block"
+                title={sidebarCollapsed ? tx("Paneli genişlet", "Expand panel") : tx("Paneli daralt", "Collapse panel")}
+                aria-label={sidebarCollapsed ? tx("Paneli genişlet", "Expand panel") : tx("Paneli daralt", "Collapse panel")}
               >
-                {tx("Profilim", "My profile")}
-              </Link>
+                {sidebarCollapsed ? "»" : "«"}
+              </button>
             </div>
-          ) : (
-            <Link
-              href="/auth"
-              className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-center text-sm font-medium text-[var(--text)] hover:bg-[var(--hover-surface)] sm:text-right"
-            >
-              {t.login}
-            </Link>
-          )}
-        </div>
-      </header>
-
-      <main className="flex flex-col gap-8">
-        <div id="tour-quick-start">
-          <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">{t.quickStart}</p>
-          <p className="mt-1 text-xs text-[var(--muted)]">
-            {tx("Aynı butona her tıklamada o kategoriye ait farklı bir örnek gelir.", "Each click returns a different sample from that category.")}
-          </p>
-          <p className="mt-1 text-xs text-[var(--muted)]">
-            {tx("Hazır senaryo havuzu:", "Starter pool:")}{" "}
-            <span className="font-medium text-[var(--text)]">
-              {starterCategory === "all" ? totalStarterVariants : categoryStarterVariants}
-            </span>{" "}
-            {tx("farklı prompt başlangıcı.", "different prompt starters.")}
-          </p>
-          <div className="sticky top-2 z-20 mt-2 -mx-2 rounded-xl border border-[var(--border)] bg-[var(--surface)]/95 px-2 py-2 backdrop-blur">
-            <div className="flex flex-wrap gap-2">
-              {(Object.keys(STARTER_CATEGORY_LABELS) as StarterCategory[]).map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setStarterCategory(cat)}
-                  className={`rounded-full border px-3 py-1 text-xs transition ${
-                    starterCategory === cat
-                      ? "border-[var(--brand-lab)] bg-[var(--brand-lab-dim)] text-[var(--brand-lab)]"
-                      : "border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]"
+            <div id="tour-profile" className="flex flex-col gap-2">
+              {!isLoaded ? (
+                <span className="text-sm text-[var(--muted)]">Oturum…</span>
+              ) : user ? (
+                <>
+                  {dailyUsage ? (
+                    <div
+                      className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs text-[var(--muted)]"
+                      title={tx(
+                        "Bugünkü günlük kota ve satın alınan bonus kredi (İstanbul günü).",
+                        "Today’s daily quota and purchased bonus credits (Istanbul day).",
+                      )}
+                    >
+                      {dailyUsage.premium ? (
+                        <>
+                          <span className="font-medium text-[var(--accent)]">Premium</span>
+                          <span className="mx-1.5 text-[var(--border)]">·</span>
+                          <span className="tabular-nums text-[var(--text)]">{dailyUsage.creditBalance}</span>{" "}
+                          {tx("bonus kredi", "bonus cr.")}
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-medium text-[var(--text)]">{dailyUsage.remaining}</span>{" "}
+                          {tx("günlük kalan", "daily left")}
+                          <span className="mx-1.5 text-[var(--border)]">·</span>
+                          <span className="tabular-nums font-medium text-[var(--text)]">{dailyUsage.creditBalance}</span>{" "}
+                          {tx("bonus", "bonus")}
+                        </>
+                      )}
+                    </div>
+                  ) : null}
+                  <Link
+                    href={isEn ? "/en/profile" : "/tr/profil"}
+                    title={tx("Profilim", "My profile")}
+                    className={`app-pressable rounded-md border border-[var(--border)] px-3 py-2 text-center text-sm font-medium text-[var(--text)] hover:bg-[var(--hover-surface)] ${
+                      sidebarCollapsed ? "px-2" : ""
+                    }`}
+                  >
+                    👤 {!sidebarCollapsed ? tx("Profilim", "My profile") : ""}
+                  </Link>
+                </>
+              ) : (
+                <Link
+                  href="/auth"
+                  title={t.login}
+                  className={`app-pressable rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-center text-sm font-medium text-[var(--text)] hover:bg-[var(--hover-surface)] ${
+                    sidebarCollapsed ? "px-2" : ""
                   }`}
                 >
-                  {isEn ? STARTER_CATEGORY_LABELS_EN[cat] : STARTER_CATEGORY_LABELS[cat]}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {starterList.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => applyStarter(s)}
-                className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--text)] transition hover:border-[var(--brand-lab)] hover:bg-[var(--brand-lab-dim)] sm:text-sm"
+                  🔐 {!sidebarCollapsed ? t.login : ""}
+                </Link>
+              )}
+              <Link
+                href="/pricing"
+                title={t.pricing}
+                className={`app-pressable rounded-md border border-[var(--accent)] bg-[var(--accent-dim)] px-3 py-2 text-center text-sm font-semibold text-[var(--text)] hover:opacity-95 ${
+                  sidebarCollapsed ? "px-2" : ""
+                }`}
               >
-                {isEn ? QUICK_STARTER_LABELS_EN[s.id] ?? s.label : s.label}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => applyStarter(starterList[Math.floor(Math.random() * starterList.length)] ?? QUICK_STARTERS[0])}
-              className="rounded-full border border-dashed border-[var(--accent)] bg-transparent px-3 py-1.5 text-xs font-medium text-[var(--accent)] transition hover:bg-[var(--brand-lab-dim)] sm:text-sm"
-            >
-              {tx("Bana rastgele örnek ver", "Give me a random example")}
-            </button>
+                💎 {!sidebarCollapsed ? t.pricing : ""}
+              </Link>
+            </div>
+
+            <div id="tour-quick-start" className={`mt-5 border-t border-[var(--border)] pt-4 ${sidebarCollapsed ? "hidden lg:hidden" : ""}`}>
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">{t.quickStart}</p>
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                {tx("Hazır senaryo havuzu:", "Starter pool:")}{" "}
+                <span className="font-medium text-[var(--text)]">
+                  {starterCategory === "all" ? totalStarterVariants : categoryStarterVariants}
+                </span>
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {(Object.keys(STARTER_CATEGORY_LABELS) as StarterCategory[]).map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setStarterCategory(cat)}
+                    className={`app-pressable rounded-full border px-2.5 py-1 text-[11px] transition ${
+                      starterCategory === cat
+                        ? "border-[var(--brand-lab)] bg-[var(--brand-lab-dim)] text-[var(--brand-lab)]"
+                        : "border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]"
+                    }`}
+                  >
+                    {isEn ? STARTER_CATEGORY_LABELS_EN[cat] : STARTER_CATEGORY_LABELS[cat]}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-3 grid gap-2">
+                {starterList.slice(0, 8).map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => applyStarter(s)}
+                    className="app-pressable rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2.5 py-2 text-left text-xs font-medium text-[var(--text)] transition hover:border-[var(--brand-lab)] hover:bg-[var(--brand-lab-dim)]"
+                  >
+                    {isEn ? QUICK_STARTER_LABELS_EN[s.id] ?? s.label : s.label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => applyStarter(starterList[Math.floor(Math.random() * starterList.length)] ?? QUICK_STARTERS[0])}
+                  className="app-pressable rounded-lg border border-dashed border-[var(--accent)] px-2.5 py-2 text-xs font-medium text-[var(--accent)] transition hover:bg-[var(--brand-lab-dim)]"
+                >
+                  🎲 {tx("Bana rastgele örnek ver", "Give me a random example")}
+                </button>
+              </div>
+            </div>
+
+            <div className={`mt-5 border-t border-[var(--border)] pt-4 ${sidebarCollapsed ? "hidden lg:hidden" : ""}`}>
+              <details className="group">
+                <summary className="app-pressable flex cursor-pointer list-none items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--hover-surface)]">
+                  <span>••• {tx("Diğer bağlantılar", "More links")}</span>
+                  <span className="text-[var(--muted)] transition-transform duration-200 group-open:rotate-180">⌄</span>
+                </summary>
+                <div className="animate-panel-pop-in mt-2 grid gap-1.5 text-xs">
+                  <Link href="/hakkimizda" className="app-pressable rounded-md px-2 py-1.5 text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)]">
+                    {tx("Hakkımızda", "About")}
+                  </Link>
+                  <Link
+                    href={locale === "en" ? "/en/how-it-works" : "/tr/nasil-calisir"}
+                    className="app-pressable rounded-md px-2 py-1.5 text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)]"
+                  >
+                    {tx("Nasıl çalışır", "How it works")}
+                  </Link>
+                  <Link
+                    href={locale === "en" ? "/en/faq" : "/tr/sss"}
+                    className="app-pressable rounded-md px-2 py-1.5 text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)]"
+                  >
+                    {tx("SSS", "FAQ")}
+                  </Link>
+                  <Link
+                    href={locale === "en" ? "/en/credits" : "/tr/kredi"}
+                    className="app-pressable rounded-md px-2 py-1.5 text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)]"
+                  >
+                    {tx("Kredi al", "Buy credits")}
+                  </Link>
+                  <Link href="/gizlilik" className="app-pressable rounded-md px-2 py-1.5 text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)]">
+                    Gizlilik / KVKK
+                  </Link>
+                  <Link
+                    href="/hizmet-sartlari"
+                    className="app-pressable rounded-md px-2 py-1.5 text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)]"
+                  >
+                    {tx("Hizmet şartları", "Terms of service")}
+                  </Link>
+                </div>
+              </details>
+            </div>
+
+            {sidebarCollapsed ? (
+              <div className="mt-5 border-t border-[var(--border)] pt-4">
+                <div className="grid gap-2">
+                  {user ? (
+                    <Link
+                      href={isEn ? "/en/profile" : "/tr/profil"}
+                      title={tx("Profilim", "My profile")}
+                      className="app-pressable rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-2 text-center text-sm text-[var(--text)]"
+                    >
+                      👤
+                    </Link>
+                  ) : (
+                    <Link
+                      href="/auth"
+                      title={t.login}
+                      className="app-pressable rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-2 text-center text-sm text-[var(--text)]"
+                    >
+                      🔐
+                    </Link>
+                  )}
+                  <Link
+                    href="/pricing"
+                    title={t.pricing}
+                    className="app-pressable rounded-md border border-[var(--accent)] bg-[var(--accent-dim)] px-2 py-2 text-center text-sm text-[var(--text)]"
+                  >
+                    💎
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => setSidebarCollapsed(false)}
+                    title={tx("Hızlı başlatı göster", "Show quick start")}
+                    className="app-pressable rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-2 text-center text-sm text-[var(--text)]"
+                  >
+                    ⚡
+                  </button>
+                  <details className="group">
+                    <summary
+                      title={tx("Diğer bağlantılar", "More links")}
+                      className="app-pressable flex list-none cursor-pointer items-center justify-center rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-2 text-sm text-[var(--text)]"
+                    >
+                      •••
+                    </summary>
+                    <div className="animate-panel-pop-in mt-2 grid gap-1 rounded-md border border-[var(--border)] bg-[var(--bg)] p-1 text-xs">
+                      <Link href="/hakkimizda" className="app-pressable rounded px-2 py-1 text-[var(--muted)] hover:text-[var(--text)]">
+                        {tx("Hk", "Ab")}
+                      </Link>
+                      <Link
+                        href={locale === "en" ? "/en/how-it-works" : "/tr/nasil-calisir"}
+                        className="app-pressable rounded px-2 py-1 text-[var(--muted)] hover:text-[var(--text)]"
+                      >
+                        {tx("Nc", "HiW")}
+                      </Link>
+                      <Link
+                        href={locale === "en" ? "/en/faq" : "/tr/sss"}
+                        className="app-pressable rounded px-2 py-1 text-[var(--muted)] hover:text-[var(--text)]"
+                      >
+                        SSS
+                      </Link>
+                      <Link
+                        href={locale === "en" ? "/en/credits" : "/tr/kredi"}
+                        className="app-pressable rounded px-2 py-1 text-[var(--muted)] hover:text-[var(--text)]"
+                      >
+                        {tx("Kr", "Cr")}
+                      </Link>
+                    </div>
+                  </details>
+                </div>
+              </div>
+            ) : null}
           </div>
-        </div>
+        </aside>
+
+        <div className="flex min-w-0 flex-col gap-8">
+          <header className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <LogoMark className="h-10 w-10 shrink-0 sm:h-11 sm:w-11" />
+              <h1 className="flex flex-wrap items-baseline gap-2 text-3xl tracking-tight sm:text-4xl">
+                <span className="font-normal text-[var(--text)]">Prompt</span>
+                <span className="font-bold text-[var(--brand-lab)]">Lab</span>
+                <span
+                  className="rounded-full border border-[var(--warn-border)] bg-[var(--warn-bg)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--warn-fg)]"
+                  title={tx("Erken erişim — geri bildirimine değer veriyoruz", "Early access — your feedback matters")}
+                >
+                  Beta
+                </span>
+              </h1>
+            </div>
+            <p className="max-w-2xl text-[15px] leading-relaxed text-[var(--muted)]">
+              {tx(
+                "Ne istediğini kendi cümlelerinle yaz; varsayılan olarak ",
+                "Describe your goal in your own words; by default we use ",
+              )}
+              <strong className="font-medium text-[var(--text)]">{tx("akıllı optimizasyon", "smart optimization")}</strong>{" "}
+              {tx(
+                "(evrensel, Role–Task–Format) ile çalışırız. İstersen uzman modda Midjourney, Copilot veya belirli bir sohbet modeli için ince ayarlı çıktı alırsın.",
+                "(universal, Role–Task–Format). Switch to expert mode for Midjourney, Copilot, or a specific chat model for finer control.",
+              )}
+            </p>
+          </header>
+
+          <main className="flex flex-col gap-8">
 
         {isLoaded && user?.id && showSceneProjectUI ? (
           <section className="grid gap-3 lg:grid-cols-[260px_1fr]">
@@ -1565,6 +1705,8 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           .
         </p>
       </footer>
+        </div>
+      </div>
       <WorkbenchShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} locale={locale} />
       <WorkbenchOnboarding locale={locale} />
       <CreditSpendToast
