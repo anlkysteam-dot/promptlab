@@ -142,20 +142,77 @@ function defaultMediaPresetForTarget(target: AiTargetId): MediaPreset {
 function enhanceRawIntent(raw: string, isEn: boolean): string {
   const input = raw.trim();
   if (!input) return "";
-  const short = input.length <= 40 && !/[.,!?]/.test(input);
-  const seed = short ? input : input.split("\n")[0]?.trim() || input;
+  const lower = input.toLowerCase();
+  const wantsVideo =
+    /video|reel|shorts|youtube|sahne|scene|kamera|camera|runway|veo|sora|kling|pika/.test(lower);
+  const wantsImage =
+    /görsel|gorsel|image|poster|afiş|afis|thumbnail|midjourney|dalle|stable diffusion/.test(lower);
+  const commercial =
+    /satış|satis|reklam|ad\b|campaign|kampanya|landing|dönüşüm|donusum|cta/.test(lower);
+  const social =
+    /instagram|tiktok|linkedin|x\b|twitter|sosyal/.test(lower);
+  const tone = /lux|premium|minimal|soft|samimi|friendly/.test(lower)
+    ? isEn
+      ? "premium, modern, emotionally clear"
+      : "premium, modern, duygusu net"
+    : /komik|funny|mizah|meme/.test(lower)
+      ? isEn
+        ? "playful, witty, high-energy"
+        : "oyuncu, esprili, yüksek enerjili"
+      : isEn
+        ? "clear, persuasive, production-ready"
+        : "net, ikna edici, üretime hazır";
+  const channelHint = social
+    ? isEn
+      ? "Optimize for social feed retention and hook strength."
+      : "Sosyal akışta tutma oranı ve güçlü açılış için optimize et."
+    : commercial
+      ? isEn
+        ? "Focus on conversion clarity and compelling CTA language."
+        : "Dönüşüm netliği ve güçlü CTA dili üzerine odaklan."
+      : isEn
+        ? "Keep it practical and directly usable."
+        : "Çıktıyı pratik ve doğrudan kullanılabilir tut.";
+
   if (isEn) {
-    return `Create a cinematic, high-detail prompt about "${seed}".
-Scene: rainy night street, neon reflections, dynamic perspective.
-Camera: low angle, tracking shot, slight motion blur.
-Style: realistic, dramatic contrast, rich textures.
-Output: concise but production-ready prompt.`;
+    return `Enhance the following user request into a professional prompt.
+
+User request (must be preserved and understood):
+"${input}"
+
+Requirements:
+- Keep the original intent, but make it clearer and more specific.
+- Add missing constraints (target audience, tone, format, success criteria).
+- Tone: ${tone}
+- ${channelHint}
+- If assumptions are needed, keep them minimal and realistic.
+- Output only the final improved prompt text (no explanation).${
+      wantsVideo
+        ? "\n- Include visual direction: shot type, camera movement, lighting, pacing."
+        : wantsImage
+          ? "\n- Include visual direction: composition, lighting, style, lens/detail cues."
+          : "\n- Include structure: role, task, format, and measurable output quality."
+    }`;
   }
-  return `"${seed}" fikrini sinematik ve detaylı bir prompta dönüştür.
-Sahne: gece, yağmurlu sokak, neon yansımalar, dinamik perspektif.
-Kamera: düşük açı, takip planı, hafif motion blur.
-Stil: gerçekçi, dramatik kontrast, zengin doku.
-Çıktı: kısa ama üretime hazır final prompt.`;
+
+  return `Aşağıdaki kullanıcı isteğini profesyonel bir prompta dönüştür.
+
+Kullanıcı isteği (anlamını koru):
+"${input}"
+
+Kurallar:
+- Ana niyeti koru, ama daha net ve uygulanabilir hale getir.
+- Eksik kalan kritik detayları tamamla (hedef kitle, ton, format, başarı ölçütü).
+- Ton: ${tone}
+- ${channelHint}
+- Varsayım gerekiyorsa az ve gerçekçi varsayım yap.
+- Sadece final geliştirilmiş promptu ver (ek açıklama verme).${
+    wantsVideo
+      ? "\n- Video ise: plan tipi, kamera hareketi, ışık ve ritim detayını ekle."
+      : wantsImage
+        ? "\n- Görsel ise: kompozisyon, ışık, stil ve detay/lens ipuçları ekle."
+        : "\n- Genel içerikte: rol, görev, çıktı formatı ve kalite kriterini netleştir."
+  }`;
 }
 
 function ClipboardIcon({ className }: { className?: string }) {
@@ -1013,7 +1070,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-8 px-4 py-8 sm:gap-10 sm:px-6 sm:py-10">
+    <div className="flex min-h-screen w-full max-w-none flex-col gap-6 px-3 py-6 sm:gap-8 sm:px-4 sm:py-8 lg:h-[calc(100vh-0.5rem)] lg:overflow-hidden lg:px-5 lg:py-4">
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {copied ? tx("Prompt panoya kopyalandı.", "Prompt copied to clipboard.") : ""}
       </div>
@@ -1035,9 +1092,9 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
       </div>
 
       <div
-        className={`grid gap-6 lg:items-start ${
-          sidebarCollapsed ? "lg:grid-cols-[92px_minmax(0,1fr)]" : "lg:grid-cols-[260px_minmax(0,1fr)]"
-        }`}
+        className={`grid gap-5 lg:items-start ${
+          sidebarCollapsed ? "lg:grid-cols-[92px_minmax(0,1fr)]" : "lg:grid-cols-[280px_minmax(0,1fr)]"
+        } lg:min-h-0 lg:flex-1`}
       >
         <aside
           className={`${mobileSidebarOpen ? "block" : "hidden"} lg:sticky lg:top-4 lg:block lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto`}
@@ -1359,8 +1416,8 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           </div>
         </aside>
 
-        <div className="flex min-w-0 flex-col gap-8">
-          <header className="flex flex-col gap-3">
+        <div className="flex min-w-0 flex-col gap-5 lg:min-h-0">
+          <header className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center gap-3">
               <LogoMark className="h-10 w-10 shrink-0 sm:h-11 sm:w-11" />
               <h1 className="flex flex-wrap items-baseline gap-2 text-3xl tracking-tight sm:text-4xl">
@@ -1374,7 +1431,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                 </span>
               </h1>
             </div>
-            <p className="max-w-2xl text-[15px] leading-relaxed text-[var(--muted)]">
+            <p className="max-w-2xl text-sm leading-relaxed text-[var(--muted)] lg:line-clamp-2">
               {tx(
                 "Ne istediğini kendi cümlelerinle yaz; varsayılan olarak ",
                 "Describe your goal in your own words; by default we use ",
@@ -1387,10 +1444,10 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
             </p>
           </header>
 
-          <main className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-start lg:gap-6">
+          <main className="grid gap-5 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_clamp(430px,33vw,560px)] lg:items-start">
 
         {isLoaded && user?.id && showSceneProjectUI ? (
-          <section className="grid gap-3 lg:col-start-1 lg:row-start-1 lg:grid-cols-[260px_1fr] lg:self-start">
+          <section className="grid gap-3 lg:col-start-1 lg:row-start-1 lg:grid-cols-[280px_1fr] lg:self-start">
             <aside className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 lg:sticky lg:top-24 lg:h-fit">
               <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">{tx("Proje menüsü", "Project sidebar")}</p>
               <div className="mt-2 space-y-2">
@@ -1426,7 +1483,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
         <form
           id="workbench-form"
           onSubmit={onSubmit}
-          className="flex flex-col gap-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6"
+          className="flex flex-col gap-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6 lg:max-h-[calc(100vh-18rem)] lg:min-h-0 lg:overflow-y-auto"
         >
           <label className="text-sm font-medium text-[var(--text)]" htmlFor="workbench-intent">
             {t.promptQuestion}
@@ -2370,11 +2427,19 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
 
       </main>
 
-      <section className="mt-8">
-        <BeforeAfterExamples locale={locale} />
+      <section className="mt-4 lg:mt-2">
+        <details className="group rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3" open={false}>
+          <summary className="app-pressable flex cursor-pointer list-none items-center justify-between text-sm font-medium text-[var(--text)]">
+            <span>{tx("Nasıl çalışıyor? Örnekler", "How it works? Examples")}</span>
+            <span className="text-[var(--muted)] transition-transform duration-200 group-open:rotate-180">⌄</span>
+          </summary>
+          <div className="mt-3 max-h-[38vh] overflow-y-auto pr-1">
+            <BeforeAfterExamples locale={locale} />
+          </div>
+        </details>
       </section>
 
-      <footer className="mt-auto border-t border-[var(--border)] pt-8 text-center">
+      <footer className="mt-auto border-t border-[var(--border)] pt-5 text-center lg:pt-3">
         <p className="text-sm text-[var(--muted)]">
           <Link href="/hakkimizda" className="text-[var(--text)] hover:underline">
             {t.about}
@@ -2417,7 +2482,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           .
         </p>
       </footer>
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--border)] bg-[var(--surface)]/95 p-2.5 backdrop-blur lg:inset-x-auto lg:right-6 lg:bottom-4 lg:w-[420px] lg:max-w-[calc(100vw-2rem)] lg:rounded-xl lg:border">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--border)] bg-[var(--surface)]/95 p-2.5 backdrop-blur lg:inset-x-auto lg:right-5 lg:bottom-4 lg:w-[clamp(430px,33vw,560px)] lg:max-w-[calc(100vw-1.25rem)] lg:rounded-xl lg:border">
         <div className="flex items-center justify-between gap-2">
           <p className="hidden text-xs text-[var(--muted)] sm:block">
             {tx("Bu çalıştırma maliyeti:", "Cost this run:")}{" "}
