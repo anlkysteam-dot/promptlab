@@ -14,6 +14,27 @@ export type RecentPromptEntry = {
   topic: string;
   tone: string;
   audience: string;
+  settingsSnapshot?: WorkbenchSettingsSnapshot;
+};
+
+export type WorkbenchSettingsSnapshot = {
+  qualityMode?: "normal" | "advanced";
+  outputLanguage?: "tr" | "en";
+  mediaPreset?: string;
+  labFormat?: "" | "16:9" | "9:16" | "1:1";
+  labFlavor?: "none" | "midjourney" | "sora" | "stable_diffusion";
+  negativePrompt?: string;
+  mjIncludeVersion?: boolean;
+  mjIncludeAr?: boolean;
+  mjVersion?: "6" | "6.1" | "7" | "niji6";
+  includeSuggestedParams?: boolean;
+  continuityLock?: boolean;
+  expertMode?: boolean;
+  selectedCharacterName?: string;
+  projectCharacterProfile?: string;
+  projectStyleProfile?: string;
+  projectStylePreset?: string;
+  characterReferenceDraft?: string;
 };
 
 function safeParse(raw: string | null): RecentPromptEntry[] {
@@ -58,6 +79,7 @@ export function clearRecentPrompts(): void {
 
 /** One-shot handoff when opening Lab from profile (recent list). */
 export const RESTORE_ENTRY_KEY = "promptlab_restore_entry_v1";
+const SETTINGS_KEY = "promptlab_recent_settings_by_history_v1";
 
 export function storeRestoreEntry(entry: RecentPromptEntry): void {
   if (typeof window === "undefined") return;
@@ -80,4 +102,42 @@ export function consumeRestoreEntry(): RecentPromptEntry | null {
   } catch {
     return null;
   }
+}
+
+function readSettingsMap(): Record<string, WorkbenchSettingsSnapshot> {
+  if (typeof window === "undefined") return {};
+  const raw = localStorage.getItem(SETTINGS_KEY);
+  if (!raw) return {};
+  try {
+    const j = JSON.parse(raw) as unknown;
+    if (!j || typeof j !== "object" || Array.isArray(j)) return {};
+    return j as Record<string, WorkbenchSettingsSnapshot>;
+  } catch {
+    return {};
+  }
+}
+
+function writeSettingsMap(map: Record<string, WorkbenchSettingsSnapshot>): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(map));
+}
+
+export function storeRecentSettings(historyId: string, settings: WorkbenchSettingsSnapshot): void {
+  if (typeof window === "undefined") return;
+  const id = historyId.trim();
+  if (!id) return;
+  const prev = readSettingsMap();
+  const next: Record<string, WorkbenchSettingsSnapshot> = { [id]: settings };
+  for (const [k, v] of Object.entries(prev)) {
+    if (k !== id && Object.keys(next).length < 120) next[k] = v;
+  }
+  writeSettingsMap(next);
+}
+
+export function readRecentSettings(historyId: string): WorkbenchSettingsSnapshot | null {
+  if (typeof window === "undefined") return null;
+  const id = historyId.trim();
+  if (!id) return null;
+  const map = readSettingsMap();
+  return map[id] ?? null;
 }

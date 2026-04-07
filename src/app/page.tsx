@@ -97,9 +97,9 @@ export default function HomePage() {
             Prompt Lab Vitrin
           </p>
           <h1 className="mt-4 text-3xl font-semibold tracking-tight text-[var(--text)] sm:text-5xl">
-            Ne istediğini yaz,
+            Video Prompt Generator:
             <br />
-            <span className="text-[var(--brand-lab)]">profesyonel prompt</span> hazır gelsin.
+            <span className="text-[var(--brand-lab)]">AI Scene Continuity</span> ile profesyonel prompt üret.
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-relaxed text-[var(--muted)] sm:text-base">
             Prompt Lab; fikirlerini hedeflediğin yapay zeka aracına uygun formatta optimize eder. Video, görsel ve
@@ -108,7 +108,7 @@ export default function HomePage() {
           <div className="mt-6 flex flex-wrap gap-2">
             <Link
               href="/tr"
-              className="app-pressable rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-[var(--on-accent)]"
+              className="app-pressable rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-[var(--on-accent)] shadow-[0_0_0_1px_rgba(94,234,212,0.35),0_0_24px_rgba(94,234,212,0.35)] ring-1 ring-[var(--accent)]/30 hover:shadow-[0_0_0_1px_rgba(94,234,212,0.5),0_0_30px_rgba(94,234,212,0.45)]"
             >
               Hemen dene
             </Link>
@@ -216,7 +216,7 @@ export default function HomePage() {
 
       <section className="mt-6 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
         <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">Neden Prompt Lab?</p>
-        <h2 className="mt-1 text-lg font-semibold text-[var(--text)]">Karşılaştırma tablosu</h2>
+        <h2 className="mt-1 text-lg font-semibold text-[var(--text)]">AI Prompt Generator karşılaştırma tablosu</h2>
         <div className="mt-4 overflow-x-auto rounded-xl border border-[var(--border)]">
           <table className="min-w-full text-left text-xs">
             <thead className="bg-[var(--bg)]/70 text-[var(--muted)]">

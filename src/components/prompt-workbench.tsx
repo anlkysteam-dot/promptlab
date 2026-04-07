@@ -8,7 +8,15 @@ import { LogoMark } from "@/components/logo-mark";
 import { WorkbenchErrorCta } from "@/components/workbench-error-cta";
 import { getEstimatedWeeklyPromptCount } from "@/lib/beta-stats";
 import { buildIntentForApi, TONE_LABELS } from "@/lib/workbench-compose-intent";
-import { consumeRestoreEntry, pushRecentPrompt, readRecentPrompts, type RecentPromptEntry } from "@/lib/workbench-recent";
+import {
+  consumeRestoreEntry,
+  pushRecentPrompt,
+  readRecentPrompts,
+  readRecentSettings,
+  storeRecentSettings,
+  type RecentPromptEntry,
+  type WorkbenchSettingsSnapshot,
+} from "@/lib/workbench-recent";
 import { getWorkbenchTargetHint } from "@/lib/workbench-target-hints";
 import { getWorkbenchUsageNote } from "@/lib/workbench-usage-notes";
 import type { MediaPreset, PromptQualityMode } from "@/lib/prompt-quality";
@@ -129,6 +137,25 @@ function defaultMediaPresetForTarget(target: AiTargetId): MediaPreset {
     default:
       return "none";
   }
+}
+
+function enhanceRawIntent(raw: string, isEn: boolean): string {
+  const input = raw.trim();
+  if (!input) return "";
+  const short = input.length <= 40 && !/[.,!?]/.test(input);
+  const seed = short ? input : input.split("\n")[0]?.trim() || input;
+  if (isEn) {
+    return `Create a cinematic, high-detail prompt about "${seed}".
+Scene: rainy night street, neon reflections, dynamic perspective.
+Camera: low angle, tracking shot, slight motion blur.
+Style: realistic, dramatic contrast, rich textures.
+Output: concise but production-ready prompt.`;
+  }
+  return `"${seed}" fikrini sinematik ve detaylı bir prompta dönüştür.
+Sahne: gece, yağmurlu sokak, neon yansımalar, dinamik perspektif.
+Kamera: düşük açı, takip planı, hafif motion blur.
+Stil: gerçekçi, dramatik kontrast, zengin doku.
+Çıktı: kısa ama üretime hazır final prompt.`;
 }
 
 function ClipboardIcon({ className }: { className?: string }) {
@@ -256,6 +283,8 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
   const [resultProvider, setResultProvider] = useState<"openai" | "groq" | "mock" | null>(null);
   const [copied, setCopied] = useState(false);
   const [copiedSceneId, setCopiedSceneId] = useState<string | null>(null);
+  const [latestHistoryId, setLatestHistoryId] = useState<string | null>(null);
+  const [sendingToShowcase, setSendingToShowcase] = useState(false);
   const [outputMode, setOutputMode] = useState<OutputMode>("prompt-only");
   const [qualityMode, setQualityMode] = useState<PromptQualityMode>("normal");
   const [outputLanguage, setOutputLanguage] = useState<OutputLanguage>("tr");
@@ -373,15 +402,8 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
   useEffect(() => {
     const entry = consumeRestoreEntry();
     if (!entry) return;
-    setIntent(entry.intent);
-    setTarget(entry.target);
-    setExpertMode(entry.target !== "universal");
-    setTopic(entry.topic ?? "");
-    setTone(entry.tone ?? "");
-    setAudience(entry.audience ?? "");
-    setResult(entry.prompt);
+    applyRecentEntry(entry);
     setResultProvider("openai");
-    setError(null);
   }, []);
 
   useEffect(() => {
@@ -532,6 +554,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
     setError(null);
     setResult(null);
     setResultProvider(null);
+    setLatestHistoryId(null);
     const payload = buildIntentForApi(intent, { topic, tone, audience });
     if (!payload.trim()) return;
     if (typeof window !== "undefined" && window.innerWidth < 1024) {
@@ -575,6 +598,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
         spentFromDaily?: number;
         spentFromBonus?: number;
         remaining?: number | null;
+        historyId?: string | null;
       } = {};
       if (raw) {
         try {
@@ -636,7 +660,12 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           topic,
           tone,
           audience,
+          settingsSnapshot: currentSettingsSnapshot,
         });
+      }
+      if (user?.id && typeof j.historyId === "string" && j.historyId) {
+        setLatestHistoryId(j.historyId);
+        storeRecentSettings(j.historyId, currentSettingsSnapshot);
       }
       if (user?.id) {
         await loadProjects();
@@ -767,6 +796,89 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
     }
   }
 
+  function enhanceIntent() {
+    const next = enhanceRawIntent(intent, isEn);
+    if (!next) return;
+    setIntent(next);
+    setError(null);
+  }
+
+  async function downloadResultImage() {
+    if (!result) return;
+    const canvas = document.createElement("canvas");
+    const width = 1400;
+    const pad = 72;
+    const lineHeight = 42;
+    const headerH = 120;
+    const footerH = 90;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.font = "28px 'DM Sans', sans-serif";
+    const maxTextWidth = width - pad * 2;
+    const words = result.replace(/\r\n/g, "\n").split(/\s+/);
+    const lines: string[] = [];
+    let current = "";
+    for (const w of words) {
+      const test = current ? `${current} ${w}` : w;
+      if (ctx.measureText(test).width > maxTextWidth) {
+        if (current) lines.push(current);
+        current = w;
+      } else {
+        current = test;
+      }
+    }
+    if (current) lines.push(current);
+    const textH = Math.max(220, lines.length * lineHeight);
+    const height = headerH + textH + footerH;
+    canvas.width = width;
+    canvas.height = height;
+    ctx.fillStyle = "#0b0f14";
+    ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = "#121922";
+    ctx.fillRect(20, 20, width - 40, height - 40);
+    ctx.fillStyle = "#a78bfa";
+    ctx.font = "700 34px 'DM Sans', sans-serif";
+    ctx.fillText("Prompt Lab", pad, 80);
+    ctx.fillStyle = "#8b9cb3";
+    ctx.font = "18px 'DM Sans', sans-serif";
+    ctx.fillText(isEn ? "Generated Prompt" : "Uretilen Prompt", pad, 108);
+    ctx.fillStyle = "#e8eef7";
+    ctx.font = "28px 'JetBrains Mono', ui-monospace, monospace";
+    lines.forEach((line, i) => {
+      ctx.fillText(line, pad, headerH + i * lineHeight);
+    });
+    ctx.fillStyle = "#8b9cb3";
+    ctx.font = "20px 'DM Sans', sans-serif";
+    ctx.fillText("promptlab", pad, height - 34);
+    const link = document.createElement("a");
+    link.download = `promptlab-${Date.now()}.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  }
+
+  async function sendToShowcase() {
+    if (!latestHistoryId || !(isLoaded && user?.id)) {
+      setError(tx("Vitrine göndermek için giriş yapmalısın.", "Sign in to send to showcase."));
+      return;
+    }
+    setSendingToShowcase(true);
+    try {
+      const r = await fetch(`/api/history/${latestHistoryId}/share`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shareToFeed: true }),
+      });
+      if (!r.ok) {
+        setError(tx("Vitrine gönderilemedi.", "Could not send to showcase."));
+        return;
+      }
+    } catch {
+      setError(tx("Vitrine gönderilemedi.", "Could not send to showcase."));
+    } finally {
+      setSendingToShowcase(false);
+    }
+  }
+
   function pickStarterVariant(s: (typeof QUICK_STARTERS)[number]): string {
     const total = s.variants.length;
     if (total === 0) return "";
@@ -811,6 +923,94 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
   );
   const showCharacterEditor =
     editingCharacterName !== "" || selectedCharacterName === "" || characterNameDraft.trim().length > 0;
+
+  const currentSettingsSnapshot = useMemo<WorkbenchSettingsSnapshot>(
+    () => ({
+      qualityMode,
+      outputLanguage,
+      mediaPreset,
+      labFormat,
+      labFlavor,
+      negativePrompt,
+      mjIncludeVersion,
+      mjIncludeAr,
+      mjVersion,
+      includeSuggestedParams,
+      continuityLock,
+      expertMode,
+      selectedCharacterName: selectedCharacterName || undefined,
+      projectCharacterProfile: projectCharacterProfile || undefined,
+      projectStyleProfile: projectStyleProfile || undefined,
+      projectStylePreset: String(projectStylePreset || ""),
+      characterReferenceDraft: characterReferenceDraft || undefined,
+    }),
+    [
+      qualityMode,
+      outputLanguage,
+      mediaPreset,
+      labFormat,
+      labFlavor,
+      negativePrompt,
+      mjIncludeVersion,
+      mjIncludeAr,
+      mjVersion,
+      includeSuggestedParams,
+      continuityLock,
+      expertMode,
+      selectedCharacterName,
+      projectCharacterProfile,
+      projectStyleProfile,
+      projectStylePreset,
+      characterReferenceDraft,
+    ],
+  );
+
+  function applySettingsSnapshot(snapshot?: WorkbenchSettingsSnapshot) {
+    if (!snapshot) return;
+    if (snapshot.qualityMode === "advanced" || snapshot.qualityMode === "normal") setQualityMode(snapshot.qualityMode);
+    if (snapshot.outputLanguage === "en" || snapshot.outputLanguage === "tr") setOutputLanguage(snapshot.outputLanguage);
+    if (typeof snapshot.mediaPreset === "string") setMediaPreset(snapshot.mediaPreset as MediaPreset);
+    if (snapshot.labFormat === "" || snapshot.labFormat === "16:9" || snapshot.labFormat === "9:16" || snapshot.labFormat === "1:1")
+      setLabFormat(snapshot.labFormat);
+    if (
+      snapshot.labFlavor === "none" ||
+      snapshot.labFlavor === "midjourney" ||
+      snapshot.labFlavor === "sora" ||
+      snapshot.labFlavor === "stable_diffusion"
+    ) {
+      setLabFlavor(snapshot.labFlavor);
+    }
+    if (typeof snapshot.negativePrompt === "string") setNegativePrompt(snapshot.negativePrompt);
+    if (typeof snapshot.mjIncludeVersion === "boolean") setMjIncludeVersion(snapshot.mjIncludeVersion);
+    if (typeof snapshot.mjIncludeAr === "boolean") setMjIncludeAr(snapshot.mjIncludeAr);
+    if (snapshot.mjVersion === "6" || snapshot.mjVersion === "6.1" || snapshot.mjVersion === "7" || snapshot.mjVersion === "niji6")
+      setMjVersion(snapshot.mjVersion);
+    if (typeof snapshot.includeSuggestedParams === "boolean") setIncludeSuggestedParams(snapshot.includeSuggestedParams);
+    if (typeof snapshot.continuityLock === "boolean") setContinuityLock(snapshot.continuityLock);
+    if (typeof snapshot.expertMode === "boolean") setExpertMode(snapshot.expertMode);
+    if (typeof snapshot.selectedCharacterName === "string") setSelectedCharacterName(snapshot.selectedCharacterName);
+    if (typeof snapshot.projectCharacterProfile === "string") setProjectCharacterProfile(snapshot.projectCharacterProfile);
+    if (typeof snapshot.projectStyleProfile === "string") setProjectStyleProfile(snapshot.projectStyleProfile);
+    if (typeof snapshot.projectStylePreset === "string" && snapshot.projectStylePreset) {
+      setProjectStylePreset(snapshot.projectStylePreset as (typeof PROJECT_STYLE_PRESETS)[number] | (typeof PROJECT_STYLE_PRESETS_EN)[number]);
+    }
+    if (typeof snapshot.characterReferenceDraft === "string") setCharacterReferenceDraft(snapshot.characterReferenceDraft);
+  }
+
+  function applyRecentEntry(row: RecentPromptEntry) {
+    setIntent(row.intent ?? "");
+    if (row.target) {
+      setTarget(row.target);
+      setExpertMode(row.target !== "universal");
+    }
+    setTopic(row.topic ?? "");
+    setTone(row.tone ?? "");
+    setAudience(row.audience ?? "");
+    setResult(row.prompt ?? null);
+    const cached = readRecentSettings(row.id);
+    applySettingsSnapshot(row.settingsSnapshot ?? cached ?? undefined);
+    setError(null);
+  }
 
   return (
     <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-8 px-4 py-8 sm:gap-10 sm:px-6 sm:py-10">
@@ -1033,18 +1233,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                       <li key={row.id}>
                         <button
                           type="button"
-                          onClick={() => {
-                            setIntent(row.intent ?? "");
-                            if (row.target) {
-                              setTarget(row.target);
-                              setExpertMode(row.target !== "universal");
-                            }
-                            setTopic(row.topic ?? "");
-                            setTone(row.tone ?? "");
-                            setAudience(row.audience ?? "");
-                            setResult(row.prompt ?? null);
-                            setError(null);
-                          }}
+                          onClick={() => applyRecentEntry(row)}
                           className="app-pressable w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 py-2 text-left text-[11px] text-[var(--muted)] hover:text-[var(--text)]"
                           title={row.intent}
                         >
@@ -1257,15 +1446,26 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
             className="min-h-[120px] w-full resize-y rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 pr-10 text-[15px] leading-relaxed text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
             />
             {intent.trim() ? (
-              <button
-                type="button"
-                onClick={() => setIntent("")}
-                className="app-pressable absolute right-2 top-2 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 text-xs text-[var(--muted)] hover:text-[var(--text)]"
-                title={tx("Metni temizle", "Clear input")}
-                aria-label={tx("Metni temizle", "Clear input")}
-              >
-                ✕
-              </button>
+              <div className="absolute right-2 top-2 flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={enhanceIntent}
+                  className="app-pressable rounded-md border border-[var(--brand-lab)]/45 bg-[var(--brand-lab-dim)]/20 px-2 py-0.5 text-xs text-[var(--brand-lab)] hover:bg-[var(--brand-lab-dim)]/35"
+                  title={tx("Sihirli değnek: metni geliştir", "Magic wand: enhance input")}
+                  aria-label={tx("Sihirli değnek: metni geliştir", "Magic wand: enhance input")}
+                >
+                  ✨
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIntent("")}
+                  className="app-pressable rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 text-xs text-[var(--muted)] hover:text-[var(--text)]"
+                  title={tx("Metni temizle", "Clear input")}
+                  aria-label={tx("Metni temizle", "Clear input")}
+                >
+                  ✕
+                </button>
+              </div>
             ) : null}
           </div>
           <p className="text-xs text-[var(--muted)]">
@@ -1288,8 +1488,12 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           </button>
 
           <details className="group rounded-lg border border-[var(--border)] bg-[var(--bg)]/30 p-4" open={false}>
-            <summary className="cursor-pointer list-none text-sm font-medium text-[var(--text)]">
-              {tx("Ayarlar (tıklayıp aç)", "Settings (click to expand)")}
+            <summary className="app-pressable flex cursor-pointer list-none items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--hover-surface)]">
+              <span className="inline-flex items-center gap-2">
+                <span aria-hidden="true">⚙️</span>
+                {tx("Ayarlar", "Settings")}
+              </span>
+              <span className="text-[var(--muted)] transition-transform duration-200 group-open:rotate-180">⌄</span>
             </summary>
             <div className="mt-4 space-y-4">
               <div className="inline-flex rounded-lg border border-[var(--border)] p-0.5 text-xs">
@@ -1748,7 +1952,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                 </select>
                 <details className="group">
                   <summary className="cursor-pointer list-none text-xs text-[var(--muted)] hover:text-[var(--text)]">
-                    {tx("Hedef hakkında kısa bilgi", "Quick target hint")} ?
+                    {tx("Hedef hakkında kısa bilgi", "Quick target hint")}
                   </summary>
                   <p className="animate-panel-pop-in mt-1 text-xs leading-relaxed text-[var(--muted)]">{targetHint}</p>
                 </details>
@@ -1784,7 +1988,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
             </div>
             <details className="group mt-2">
               <summary className="cursor-pointer list-none text-xs text-[var(--muted)] hover:text-[var(--text)]">
-                {tx("Kalite modu açıklaması", "Quality mode hint")} ?
+                {tx("Kalite modu açıklaması", "Quality mode hint")}
               </summary>
               <p className="animate-panel-pop-in mt-1 text-xs leading-relaxed text-[var(--muted)]">
                 {qualityMode === "advanced"
@@ -2043,7 +2247,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
 
         <section
           ref={resultSectionRef}
-          className="flex min-h-[280px] flex-col gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:min-h-[320px] sm:p-6 lg:col-start-2 lg:row-start-1 lg:row-span-3 lg:self-start lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:shadow-2xl"
+          className="flex min-h-[280px] flex-col gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:min-h-[320px] sm:p-6 lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:self-start lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:shadow-2xl"
           aria-busy={loading}
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2089,6 +2293,21 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                   className="rounded-md border border-[var(--brand-lab)]/50 bg-[var(--brand-lab-dim)] px-3 py-2 text-sm font-medium text-[var(--brand-lab)] hover:opacity-90"
                 >
                   {tx("ChatGPT'de aç", "Open in ChatGPT")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void downloadResultImage()}
+                  className="rounded-md border border-[var(--border)] px-3 py-2 text-sm font-medium text-[var(--muted)] hover:text-[var(--text)]"
+                >
+                  {tx("Görüntü indir", "Download image")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void sendToShowcase()}
+                  disabled={sendingToShowcase || !(isLoaded && user?.id) || !latestHistoryId}
+                  className="rounded-md border border-[var(--brand-lab)]/50 bg-[var(--brand-lab-dim)]/20 px-3 py-2 text-sm font-medium text-[var(--brand-lab)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {sendingToShowcase ? tx("Gönderiliyor…", "Sending...") : tx("Vitrin'e gönder", "Send to showcase")}
                 </button>
               </div>
             ) : null}
@@ -2149,10 +2368,11 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           )}
         </section>
 
-        <div className="lg:col-span-2">
-          <BeforeAfterExamples locale={locale} />
-        </div>
       </main>
+
+      <section className="mt-8">
+        <BeforeAfterExamples locale={locale} />
+      </section>
 
       <footer className="mt-auto border-t border-[var(--border)] pt-8 text-center">
         <p className="text-sm text-[var(--muted)]">

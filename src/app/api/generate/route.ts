@@ -568,9 +568,10 @@ export async function POST(req: Request) {
 
   }
 
+  let historyId: string | null = null;
   if (appUser?.id) {
     try {
-      await prisma.promptHistory.create({
+      const created = await prisma.promptHistory.create({
         data: {
           userId: appUser.id,
           intent,
@@ -582,6 +583,7 @@ export async function POST(req: Request) {
           provider,
         },
       });
+      historyId = created.id;
     } catch (e) {
       // Geçmiş kaydı başarısız olsa da ana üretim yanıtını düşürmeyelim.
       console.error("promptHistory.create", e);
@@ -635,6 +637,7 @@ export async function POST(req: Request) {
       spentFromDaily: spendResult.fromFree,
 
       spentFromBonus: spendResult.fromPurchased,
+      historyId,
 
     },
 
