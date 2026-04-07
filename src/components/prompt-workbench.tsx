@@ -1,7 +1,7 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { BeforeAfterExamples } from "@/components/before-after-examples";
 import { LogoMark } from "@/components/logo-mark";
@@ -180,6 +180,7 @@ type SceneItem = {
   continuitySnapshot: string | null;
   createdAt: string;
 };
+type SavedCharacter = { name: string; profile: string; referenceUrl?: string };
 
 const UI_TEXT: Record<
   UiLocale,
@@ -264,11 +265,14 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
   const [selectedStarterId, setSelectedStarterId] = useState<string>("");
   const [sidebarRecent, setSidebarRecent] = useState<RecentPromptEntry[]>([]);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [savedCharacters, setSavedCharacters] = useState<Array<{ name: string; profile: string }>>([]);
+  const [savedCharacters, setSavedCharacters] = useState<SavedCharacter[]>([]);
   const [selectedCharacterName, setSelectedCharacterName] = useState("");
   const [characterNameDraft, setCharacterNameDraft] = useState("");
+  const [characterReferenceDraft, setCharacterReferenceDraft] = useState("");
   const [editingCharacterName, setEditingCharacterName] = useState("");
   const [continuityLock, setContinuityLock] = useState(true);
+  const [settingsTab, setSettingsTab] = useState<"general" | "director" | "details">("general");
+  const resultSectionRef = useRef<HTMLElement | null>(null);
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string>("");
   const [projectTitle, setProjectTitle] = useState("");
@@ -448,11 +452,16 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
     try {
       const raw = localStorage.getItem("promptlab_character_library_v1");
       if (!raw) return;
-      const parsed = JSON.parse(raw) as Array<{ name: string; profile: string }>;
+      const parsed = JSON.parse(raw) as SavedCharacter[];
       if (Array.isArray(parsed)) {
         setSavedCharacters(
           parsed.filter(
-            (c) => typeof c?.name === "string" && c.name.trim() && typeof c?.profile === "string" && c.profile.trim(),
+            (c) =>
+              typeof c?.name === "string" &&
+              c.name.trim() &&
+              typeof c?.profile === "string" &&
+              c.profile.trim() &&
+              (c.referenceUrl == null || typeof c.referenceUrl === "string"),
           ),
         );
       }
@@ -524,6 +533,11 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
     setResultProvider(null);
     const payload = buildIntentForApi(intent, { topic, tone, audience });
     if (!payload.trim()) return;
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      window.setTimeout(() => {
+        resultSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 20);
+    }
     setLoading(true);
     try {
       const r = await fetch("/api/generate", {
@@ -637,6 +651,12 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
   async function createProject() {
     const cleanTitle = projectTitle.trim();
     if (!cleanTitle) return;
+    const composedCharacterProfile = [
+      projectCharacterProfile.trim(),
+      characterReferenceDraft.trim() ? `Ref: ${characterReferenceDraft.trim()}` : "",
+    ]
+      .filter(Boolean)
+      .join(" | ");
     const composedStyleProfile =
       projectStylePreset && !["Yok / serbest", "None / free"].includes(projectStylePreset)
         ? [projectStylePreset, projectStyleProfile.trim()].filter(Boolean).join(" | ")
@@ -649,7 +669,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
         body: JSON.stringify({
           title: cleanTitle,
           target: effectiveTarget,
-          characterProfile: projectCharacterProfile,
+          characterProfile: composedCharacterProfile,
           styleProfile: composedStyleProfile,
         }),
       });
@@ -674,16 +694,20 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
     const profile = projectCharacterProfile.trim();
     if (!name || !profile) return;
     const finalName = editingCharacterName || name;
-    setSavedCharacters((prev) => [{ name: finalName, profile }, ...prev.filter((c) => c.name !== finalName)].slice(0, 30));
+    setSavedCharacters((prev) =>
+      [{ name: finalName, profile, referenceUrl: characterReferenceDraft.trim() || undefined }, ...prev.filter((c) => c.name !== finalName)].slice(0, 30),
+    );
     setEditingCharacterName("");
     setSelectedCharacterName(finalName);
     setCharacterNameDraft("");
+    setCharacterReferenceDraft("");
   }
 
   function applyCharacterFromLibrary(name: string) {
     const row = savedCharacters.find((c) => c.name === name);
     if (!row) return;
     setProjectCharacterProfile(row.profile);
+    setCharacterReferenceDraft(row.referenceUrl ?? "");
     setSelectedCharacterName(name);
   }
 
@@ -699,6 +723,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
     setEditingCharacterName(name);
     setCharacterNameDraft(name);
     setProjectCharacterProfile(row.profile);
+    setCharacterReferenceDraft(row.referenceUrl ?? "");
     setSelectedCharacterName(name);
   }
 
@@ -762,10 +787,17 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
     }
   }
 
+  function submitWorkbenchForm() {
+    const form = document.getElementById("workbench-form") as HTMLFormElement | null;
+    if (form && !loading && intent.trim()) form.requestSubmit();
+  }
+
   const activeProject = useMemo(
     () => projects.find((p) => p.id === activeProjectId) ?? null,
     [projects, activeProjectId],
   );
+  const showCharacterEditor =
+    editingCharacterName !== "" || selectedCharacterName === "" || characterNameDraft.trim().length > 0;
 
   return (
     <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-8 px-4 py-8 sm:gap-10 sm:px-6 sm:py-10">
@@ -1153,7 +1185,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
             </p>
           </header>
 
-          <main className="flex flex-col gap-8">
+          <main className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_420px] lg:gap-6">
 
         {isLoaded && user?.id && showSceneProjectUI ? (
           <section className="grid gap-3 lg:grid-cols-[260px_1fr]">
@@ -1242,7 +1274,48 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
             {loading ? t.creating : tx("Profesyonel prompt oluştur", "Generate professional prompt")}
           </button>
 
-          {expertMode && mediaKind ? (
+          <details className="group rounded-lg border border-[var(--border)] bg-[var(--bg)]/30 p-3" open={false}>
+            <summary className="cursor-pointer list-none text-sm font-medium text-[var(--text)]">
+              {tx("Ayarlar (tıklayıp aç)", "Settings (click to expand)")}
+            </summary>
+            <div className="mt-3 space-y-3">
+              <div className="inline-flex rounded-lg border border-[var(--border)] p-0.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setSettingsTab("general")}
+                  className={`rounded-md px-2.5 py-1.5 font-medium transition ${
+                    settingsTab === "general"
+                      ? "bg-[var(--accent)] text-[var(--on-accent)]"
+                      : "text-[var(--muted)] hover:text-[var(--text)]"
+                  }`}
+                >
+                  {tx("Genel ayarlar", "General")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettingsTab("director")}
+                  className={`rounded-md px-2.5 py-1.5 font-medium transition ${
+                    settingsTab === "director"
+                      ? "bg-[var(--accent)] text-[var(--on-accent)]"
+                      : "text-[var(--muted)] hover:text-[var(--text)]"
+                  }`}
+                >
+                  {tx("Karakter & Sahne", "Character & Scene")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettingsTab("details")}
+                  className={`rounded-md px-2.5 py-1.5 font-medium transition ${
+                    settingsTab === "details"
+                      ? "bg-[var(--accent)] text-[var(--on-accent)]"
+                      : "text-[var(--muted)] hover:text-[var(--text)]"
+                  }`}
+                >
+                  {tx("Detaylar", "Details")}
+                </button>
+              </div>
+
+          {settingsTab === "general" && expertMode && mediaKind ? (
             <div className="rounded-lg border border-[var(--brand-lab)]/35 bg-[var(--brand-lab-dim)]/25 p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">Lab</p>
               <p className="mt-1 text-xs text-[var(--muted)]">
@@ -1370,7 +1443,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
             </div>
           ) : null}
 
-          {expertMode ? (
+          {settingsTab === "general" && expertMode ? (
             <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)]/40 p-4">
               <label className="flex cursor-pointer items-start gap-2 text-xs">
                 <input
@@ -1392,7 +1465,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
             </div>
           ) : null}
 
-          {isLoaded && user?.id && showSceneProjectUI ? (
+          {settingsTab === "director" && isLoaded && user?.id && showSceneProjectUI ? (
             <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)]/40 p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">{t.projectSection}</p>
               <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
@@ -1441,29 +1514,51 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                       className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs text-[var(--text)]"
                     />
                   </div>
-                  <label htmlFor="project-character-profile" className="mb-1 block text-xs text-[var(--muted)]">
-                    {tx("Karakter bilgisi (opsiyonel)", "Character profile (optional)")}
-                  </label>
-                  <textarea
-                    id="project-character-profile"
-                    rows={3}
-                    value={projectCharacterProfile}
-                    onChange={(e) => setProjectCharacterProfile(e.target.value)}
-                    placeholder={tx(
-                      "Örn: 35 yaş erkek, kırmızı palto, kısa sakal, sakin yüz ifadesi",
-                      "e.g. Male, 35, red coat, short beard, calm facial expression",
-                    )}
-                    className="w-full resize-y rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
-                  />
-                  <button
-                    type="button"
-                    onClick={saveCharacterToLibrary}
-                    className="mt-2 rounded-md border border-[var(--border)] px-2.5 py-1 text-xs text-[var(--text)] hover:bg-[var(--hover-surface)]"
-                  >
-                    {editingCharacterName
-                      ? tx("Karakteri güncelle", "Update character")
-                      : tx("Karakteri kaydet", "Save character")}
-                  </button>
+                  {!showCharacterEditor ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingCharacterName(selectedCharacterName);
+                        setCharacterNameDraft(selectedCharacterName || tx("Yeni karakter", "New character"));
+                      }}
+                      className="rounded-md border border-dashed border-[var(--border)] px-2.5 py-1 text-xs text-[var(--muted)] hover:text-[var(--text)]"
+                    >
+                      {selectedCharacterName ? tx("✎ Karakteri düzenle", "✎ Edit character") : tx("+ Yeni karakter oluştur", "+ Create new character")}
+                    </button>
+                  ) : (
+                    <>
+                      <label htmlFor="project-character-profile" className="mb-1 block text-xs text-[var(--muted)]">
+                        {tx("Karakter bilgisi (opsiyonel)", "Character profile (optional)")}
+                      </label>
+                      <textarea
+                        id="project-character-profile"
+                        rows={3}
+                        value={projectCharacterProfile}
+                        onChange={(e) => setProjectCharacterProfile(e.target.value)}
+                        placeholder={tx(
+                          "Örn: 35 yaş erkek, kırmızı palto, kısa sakal, sakin yüz ifadesi",
+                          "e.g. Male, 35, red coat, short beard, calm facial expression",
+                        )}
+                        className="w-full resize-y rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                      />
+                      <input
+                        type="url"
+                        value={characterReferenceDraft}
+                        onChange={(e) => setCharacterReferenceDraft(e.target.value)}
+                        placeholder={tx("Görsel referans linki (opsiyonel)", "Reference image link (optional)")}
+                        className="mt-2 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs text-[var(--text)]"
+                      />
+                      <button
+                        type="button"
+                        onClick={saveCharacterToLibrary}
+                        className="mt-2 rounded-md border border-[var(--border)] px-2.5 py-1 text-xs text-[var(--text)] hover:bg-[var(--hover-surface)]"
+                      >
+                        {editingCharacterName
+                          ? tx("Karakteri güncelle", "Update character")
+                          : tx("Karakteri kaydet", "Save character")}
+                      </button>
+                    </>
+                  )}
                   {savedCharacters.length > 0 ? (
                     <ul className="mt-2 space-y-1.5">
                       {savedCharacters.slice(0, 6).map((c) => (
@@ -1580,8 +1675,13 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
               </div>
             </div>
           ) : null}
+          {settingsTab === "director" && !(isLoaded && user?.id && showSceneProjectUI) ? (
+            <div className="rounded-lg border border-dashed border-[var(--border)] bg-[var(--bg)]/40 px-3 py-2 text-xs text-[var(--muted)]">
+              {tx("Bu sekme video hedefi + giriş ile aktif olur.", "This tab is available with video target + sign in.")}
+            </div>
+          ) : null}
 
-          <div className="flex flex-col gap-2">
+          {settingsTab === "general" ? <div className="flex flex-col gap-2">
             <span className="text-sm font-medium text-[var(--text)]">{tx("Hedef / optimizasyon", "Target / optimization")}</span>
             {!expertMode ? (
               <div className="rounded-lg border border-[var(--brand-lab)]/35 bg-[var(--brand-lab-dim)]/40 px-4 py-3">
@@ -1641,9 +1741,9 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                 </details>
               </>
             )}
-          </div>
+          </div> : null}
 
-          <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)]/40 p-4">
+          {settingsTab === "general" ? <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)]/40 p-4">
             <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">{tx("Prompt kalite modu", "Prompt quality mode")}</p>
             <div className="mt-2 inline-flex rounded-lg border border-[var(--border)] p-0.5 text-xs">
               <button
@@ -1745,9 +1845,9 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                 </p>
               </div>
             ) : null}
-          </div>
+          </div> : null}
 
-          {mediaKind && qualityMode === "advanced" ? (
+          {settingsTab === "general" && mediaKind && qualityMode === "advanced" ? (
             <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)]/40 p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">
                 {mediaKind === "video" ? tx("Video şablonu", "Video template") : tx("Görsel şablonu", "Image template")}
@@ -1776,7 +1876,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
             </div>
           ) : null}
 
-          <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)]/40 p-4">
+          {settingsTab === "details" ? <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)]/40 p-4">
             <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">{tx("İstersen netleştir", "Optional refinements")}</p>
             <p className="mt-1 text-xs text-[var(--muted)]">
               {tx("Konu, ton ve kitle; isteğe bağlı — sunucuya gönderilen metne eklenir.", "Topic, tone, and audience are optional and appended to the request.")}
@@ -1827,7 +1927,9 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                 />
               </div>
             </div>
-          </div>
+          </div> : null}
+            </div>
+          </details>
 
           {error ? (
             <div className="rounded-lg border border-[var(--warn-border)] bg-[var(--warn-bg)] px-3 py-2 text-sm text-[var(--warn-fg)]">
@@ -1847,7 +1949,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
         </form>
 
         {isLoaded && user?.id && showSceneProjectUI && activeProject ? (
-          <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+          <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 lg:col-start-1">
             <div className="mb-2 flex items-center justify-between gap-2">
               <h3 className="text-sm font-semibold text-[var(--text)]">
                 {t.projectFlow} · {activeProject.title}
@@ -1914,7 +2016,8 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
         ) : null}
 
         <section
-          className="flex min-h-[280px] flex-col gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:min-h-[320px] sm:p-6"
+          ref={resultSectionRef}
+          className="flex min-h-[280px] flex-col gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:min-h-[320px] sm:p-6 lg:col-start-2 lg:row-start-1 lg:row-span-3 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:shadow-2xl"
           aria-busy={loading}
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2019,7 +2122,9 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           )}
         </section>
 
-        <BeforeAfterExamples locale={locale} />
+        <div className="lg:col-span-2">
+          <BeforeAfterExamples locale={locale} />
+        </div>
       </main>
 
       <footer className="mt-auto border-t border-[var(--border)] pt-8 text-center">
@@ -2065,6 +2170,23 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           .
         </p>
       </footer>
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--border)] bg-[var(--surface)]/95 p-3 backdrop-blur lg:left-[max(320px,22vw)] lg:right-6 lg:bottom-4 lg:rounded-xl lg:border">
+        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
+          <p className="hidden text-xs text-[var(--muted)] sm:block">
+            {tx("Bu çalıştırma maliyeti:", "Cost this run:")}{" "}
+            <span className="font-semibold text-[var(--text)]">{creditCostThisRun}</span>{" "}
+            {tx("kredi", "credits")}
+          </p>
+          <button
+            type="button"
+            onClick={submitWorkbenchForm}
+            disabled={loading || !intent.trim()}
+            className="app-pressable inline-flex w-full items-center justify-center rounded-lg bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-[var(--on-accent)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
+          >
+            {loading ? t.creating : tx("Profesyonel prompt oluştur", "Generate professional prompt")}
+          </button>
+        </div>
+      </div>
         </div>
       </div>
       <WorkbenchShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} locale={locale} />
