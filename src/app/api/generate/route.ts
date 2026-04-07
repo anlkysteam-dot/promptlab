@@ -18,7 +18,11 @@ import { llmFailureMessage } from "@/lib/llm-errors";
 import { buildMockPrompt } from "@/lib/mock-prompt";
 
 import { resolvePremiumForUser } from "@/lib/premium";
-import { buildContinuityContextWithProjectProfiles, buildContinuitySnapshot } from "@/lib/continuity-context";
+import {
+  buildContinuityContextWithProjectProfiles,
+  buildContinuitySnapshot,
+  scoreContinuity,
+} from "@/lib/continuity-context";
 import {
   buildLabPresetBlock,
   buildSuggestedParamsBlock,
@@ -590,6 +594,19 @@ export async function POST(req: Request) {
     }
   }
 
+  let continuityScore: number | null = null;
+  let continuityReasons: string[] = [];
+  if (activeProject && activeProject.scenes.length > 0) {
+    const scored = scoreContinuity({
+      promptText,
+      previousScenes: activeProject.scenes,
+      characterProfile: activeProject.characterProfile,
+      styleProfile: activeProject.styleProfile,
+    });
+    continuityScore = scored.score;
+    continuityReasons = scored.reasons;
+  }
+
   if (appUser?.id && activeProject) {
     try {
       const last = activeProject.scenes[0];
@@ -638,6 +655,8 @@ export async function POST(req: Request) {
 
       spentFromBonus: spendResult.fromPurchased,
       historyId,
+      continuityScore,
+      continuityReasons,
 
     },
 

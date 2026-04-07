@@ -50,3 +50,55 @@ export function buildContinuityContextWithProjectProfiles(
 export function buildContinuitySnapshot(currentGeneratedPrompt: string): string {
   return cleanLine(currentGeneratedPrompt).slice(0, 900);
 }
+
+function keywordsFrom(text: string): string[] {
+  const stop = new Set([
+    "the",
+    "and",
+    "for",
+    "with",
+    "that",
+    "this",
+    "from",
+    "into",
+    "ve",
+    "ile",
+    "için",
+    "icin",
+    "olan",
+    "gibi",
+    "daha",
+    "çok",
+    "cok",
+  ]);
+  return cleanLine(text)
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s-]/gu, " ")
+    .split(/\s+/)
+    .filter((w) => w.length >= 4 && !stop.has(w))
+    .slice(0, 120);
+}
+
+export function scoreContinuity(params: {
+  promptText: string;
+  previousScenes: SceneLike[];
+  characterProfile?: string | null;
+  styleProfile?: string | null;
+}): { score: number; reasons: string[] } {
+  const promptK = new Set(keywordsFrom(params.promptText));
+  const profileK = keywordsFrom(`${params.characterProfile ?? ""} ${params.styleProfile ?? ""}`);
+  const sceneK = keywordsFrom(params.previousScenes.map((s) => `${s.userInput} ${s.generatedPrompt}`).join(" "));
+  const profileHits = profileK.filter((k) => promptK.has(k)).length;
+  const sceneHits = sceneK.filter((k) => promptK.has(k)).length;
+  const profileRatio = profileK.length ? profileHits / profileK.length : 0.6;
+  const sceneRatio = sceneK.length ? sceneHits / sceneK.length : 0.6;
+  const raw = Math.round(Math.min(1, 0.55 * profileRatio + 0.45 * sceneRatio) * 100);
+  const score = Math.max(45, raw);
+  const reasons: string[] = [];
+  reasons.push(`Profile token match: ${profileHits}/${Math.max(1, profileK.length)}`);
+  reasons.push(`Scene memory match: ${sceneHits}/${Math.max(1, sceneK.length)}`);
+  if (score >= 80) reasons.push("Strong continuity alignment");
+  else if (score >= 65) reasons.push("Moderate continuity alignment");
+  else reasons.push("Continuity could be tightened");
+  return { score, reasons };
+}

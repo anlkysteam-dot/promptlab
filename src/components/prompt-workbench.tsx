@@ -289,6 +289,7 @@ function ResultSkeleton() {
 }
 
 type OutputMode = "prompt-only" | "with-tip";
+type VariantMode = "base" | "safe" | "creative" | "cinematic";
 type OutputLanguage = "tr" | "en";
 type UiLocale = "tr" | "en";
 type ProjectItem = {
@@ -387,6 +388,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
   const [latestHistoryId, setLatestHistoryId] = useState<string | null>(null);
   const [sendingToShowcase, setSendingToShowcase] = useState(false);
   const [outputMode, setOutputMode] = useState<OutputMode>("prompt-only");
+  const [variantMode, setVariantMode] = useState<VariantMode>("base");
   const [qualityMode, setQualityMode] = useState<PromptQualityMode>("normal");
   const [outputLanguage, setOutputLanguage] = useState<OutputLanguage>("tr");
   const [mediaPreset, setMediaPreset] = useState<MediaPreset>("none");
@@ -436,6 +438,20 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
   const effectiveTarget = useMemo<AiTargetId>(() => (expertMode ? target : "universal"), [expertMode, target]);
   const targetHint = useMemo(() => getWorkbenchTargetHint(effectiveTarget), [effectiveTarget]);
   const usageNote = useMemo(() => getWorkbenchUsageNote(effectiveTarget), [effectiveTarget]);
+  const [continuityScore, setContinuityScore] = useState<number | null>(null);
+  const [continuityReasons, setContinuityReasons] = useState<string[]>([]);
+
+  const variantPrompt = useMemo(() => {
+    if (!result) return "";
+    if (variantMode === "base") return result;
+    if (variantMode === "safe") {
+      return `${result}\n\n[SAFE CONSTRAINTS]\n- Keep claims factual and verifiable.\n- Avoid harmful/illegal instructions.\n- Keep output concise and brand-safe.`;
+    }
+    if (variantMode === "creative") {
+      return `${result}\n\n[CREATIVE BOOST]\n- Add one bold, attention-grabbing angle.\n- Increase originality with vivid language.\n- Keep structure clear and executable.`;
+    }
+    return `${result}\n\n[CINEMATIC EMPHASIS]\n- Strong shot progression and camera intent.\n- Rich lighting, atmosphere, and texture notes.\n- Preserve character/style continuity between scenes.`;
+  }, [result, variantMode]);
   const creditCostThisRun = useMemo(
     () => generationCreditCost(dailyUsage?.premium ?? false, qualityMode),
     [dailyUsage?.premium, qualityMode],
@@ -655,6 +671,9 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
     setError(null);
     setResult(null);
     setResultProvider(null);
+    setVariantMode("base");
+    setContinuityScore(null);
+    setContinuityReasons([]);
     setLatestHistoryId(null);
     const payload = buildIntentForApi(intent, { topic, tone, audience });
     if (!payload.trim()) return;
@@ -700,6 +719,8 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
         spentFromBonus?: number;
         remaining?: number | null;
         historyId?: string | null;
+        continuityScore?: number | null;
+        continuityReasons?: string[];
       } = {};
       if (raw) {
         try {
@@ -721,6 +742,8 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
       const promptText = j.prompt ?? "";
       setResult(promptText);
       setResultProvider(j.provider ?? "openai");
+      setContinuityScore(typeof j.continuityScore === "number" ? j.continuityScore : null);
+      setContinuityReasons(Array.isArray(j.continuityReasons) ? j.continuityReasons : []);
       if (typeof j.creditCost === "number") {
         setCreditToastPayload({
           premium: Boolean(j.premium),
@@ -873,15 +896,15 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
   }
 
   async function copyResult() {
-    if (!result) return;
-    await navigator.clipboard.writeText(result);
+    if (!variantPrompt) return;
+    await navigator.clipboard.writeText(variantPrompt);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 2000);
   }
 
   async function openInChatGPT() {
-    if (!result) return;
-    await navigator.clipboard.writeText(result);
+    if (!variantPrompt) return;
+    await navigator.clipboard.writeText(variantPrompt);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 2000);
     window.open(CHATGPT_URL, "_blank", "noopener,noreferrer");
@@ -907,7 +930,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
   }
 
   async function downloadResultImage() {
-    if (!result) return;
+    if (!variantPrompt) return;
     const canvas = document.createElement("canvas");
     const width = 1400;
     const pad = 72;
@@ -918,7 +941,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
     if (!ctx) return;
     ctx.font = "28px 'DM Sans', sans-serif";
     const maxTextWidth = width - pad * 2;
-    const words = result.replace(/\r\n/g, "\n").split(/\s+/);
+    const words = variantPrompt.replace(/\r\n/g, "\n").split(/\s+/);
     const lines: string[] = [];
     let current = "";
     for (const w of words) {
@@ -2363,6 +2386,26 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
             {result && !loading ? (
               <div className="flex flex-wrap items-center gap-2">
                 <div className="flex rounded-lg border border-[var(--border)] p-0.5 text-xs">
+                  {(["base", "safe", "creative", "cinematic"] as VariantMode[]).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setVariantMode(m)}
+                      className={`rounded-md px-2 py-1.5 font-medium transition ${
+                        variantMode === m ? "bg-[var(--brand-lab)] text-white" : "text-[var(--muted)] hover:text-[var(--text)]"
+                      }`}
+                    >
+                      {m === "base"
+                        ? tx("Orijinal", "Original")
+                        : m === "safe"
+                          ? "Safe"
+                          : m === "creative"
+                            ? tx("Yaratıcı", "Creative")
+                            : tx("Sinematik", "Cinematic")}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex rounded-lg border border-[var(--border)] p-0.5 text-xs">
                   <button
                     type="button"
                     onClick={() => setOutputMode("prompt-only")}
@@ -2428,6 +2471,16 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
             </div>
           ) : result ? (
             <div className="flex min-h-0 flex-1 flex-col gap-2">
+              {continuityScore != null ? (
+                <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)]/70 px-3 py-2 text-xs text-[var(--muted)]">
+                  <p className="font-medium text-[var(--text)]">
+                    {tx("Continuity Score", "Continuity Score")}: {continuityScore}/100
+                  </p>
+                  {continuityReasons.length > 0 ? (
+                    <p className="mt-1 line-clamp-2">{continuityReasons.join(" · ")}</p>
+                  ) : null}
+                </div>
+              ) : null}
               {resultProvider === "mock" ? (
                 <p className="rounded-lg border border-[var(--warn-border)] bg-[var(--warn-bg)] px-3 py-2 text-xs text-[var(--warn-fg)]">
                   <span className="font-semibold">{tx("Demo modu:", "Demo mode:")}</span>{" "}
@@ -2442,7 +2495,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                 className="max-h-[min(50vh,420px)] min-h-0 flex-1 overflow-auto whitespace-pre-wrap rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4 text-sm leading-relaxed text-[var(--text)]"
                 style={{ fontFamily: "var(--font-mono), ui-monospace, monospace" }}
               >
-                {result}
+                {variantPrompt}
               </pre>
               {outputMode === "with-tip" ? (
                 <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)]/80 p-4 text-sm leading-relaxed text-[var(--muted)]">
