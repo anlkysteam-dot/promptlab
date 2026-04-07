@@ -8,7 +8,7 @@ import { LogoMark } from "@/components/logo-mark";
 import { WorkbenchErrorCta } from "@/components/workbench-error-cta";
 import { getEstimatedWeeklyPromptCount } from "@/lib/beta-stats";
 import { buildIntentForApi, TONE_LABELS } from "@/lib/workbench-compose-intent";
-import { consumeRestoreEntry, pushRecentPrompt } from "@/lib/workbench-recent";
+import { consumeRestoreEntry, pushRecentPrompt, readRecentPrompts, type RecentPromptEntry } from "@/lib/workbench-recent";
 import { getWorkbenchTargetHint } from "@/lib/workbench-target-hints";
 import { getWorkbenchUsageNote } from "@/lib/workbench-usage-notes";
 import type { MediaPreset, PromptQualityMode } from "@/lib/prompt-quality";
@@ -248,6 +248,8 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
   const [starterMemory, setStarterMemory] = useState<Record<string, number>>({});
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [starterCategory, setStarterCategory] = useState<StarterCategory>("all");
+  const [selectedStarterId, setSelectedStarterId] = useState<string>("");
+  const [sidebarRecent, setSidebarRecent] = useState<RecentPromptEntry[]>([]);
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string>("");
   const [projectTitle, setProjectTitle] = useState("");
@@ -299,6 +301,10 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
     if (starterCategory === "all") return QUICK_STARTERS;
     return QUICK_STARTERS.filter((s) => s.category === starterCategory);
   }, [starterCategory]);
+  const selectedStarter = useMemo(
+    () => starterList.find((s) => s.id === selectedStarterId) ?? starterList[0] ?? null,
+    [starterList, selectedStarterId],
+  );
   const totalStarterVariants = useMemo(
     () => QUICK_STARTERS.reduce((sum, s) => sum + s.variants.length, 0),
     [],
@@ -386,6 +392,37 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
       setMediaPreset("none");
     }
   }, [mediaPreset, mediaPresetOptions]);
+
+  useEffect(() => {
+    if (starterList.length === 0) {
+      setSelectedStarterId("");
+      return;
+    }
+    if (!starterList.some((s) => s.id === selectedStarterId)) {
+      setSelectedStarterId(starterList[0].id);
+    }
+  }, [starterList, selectedStarterId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      if (isLoaded && user?.id) {
+        try {
+          const r = await fetch("/api/history?limit=5", { cache: "no-store" });
+          if (!r.ok || cancelled) return;
+          const j = (await r.json()) as { items?: RecentPromptEntry[] };
+          if (!cancelled) setSidebarRecent(Array.isArray(j.items) ? j.items : []);
+          return;
+        } catch {
+          // fall back to local entries
+        }
+      }
+      if (!cancelled) setSidebarRecent(readRecentPrompts().slice(0, 5));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoaded, user?.id, result]);
 
   useEffect(() => {
     if (qualityMode !== "advanced") return;
@@ -672,7 +709,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
         }`}
       >
         <aside className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
-          <div className="animate-app-panel-in rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+          <div className="animate-app-panel-in rounded-xl border border-[var(--border)] bg-[var(--panel-surface)] p-4">
             <div className="mb-4 flex items-center gap-2 border-b border-[var(--border)] pb-3">
               <LogoMark className="h-7 w-7 shrink-0" />
               {!sidebarCollapsed ? (
@@ -691,68 +728,87 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                 {sidebarCollapsed ? "»" : "«"}
               </button>
             </div>
-            <div id="tour-profile" className="flex flex-col gap-2">
-              {!isLoaded ? (
-                <span className="text-sm text-[var(--muted)]">Oturum…</span>
-              ) : user ? (
-                <>
-                  {dailyUsage ? (
-                    <div
-                      className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs text-[var(--muted)]"
-                      title={tx(
-                        "Bugünkü günlük kota ve satın alınan bonus kredi (İstanbul günü).",
-                        "Today’s daily quota and purchased bonus credits (Istanbul day).",
-                      )}
+            {!sidebarCollapsed ? (
+              <div id="tour-profile" className="flex flex-col gap-2">
+                {!isLoaded ? (
+                  <span className="text-sm text-[var(--muted)]">Oturum…</span>
+                ) : user ? (
+                  <>
+                    {dailyUsage ? (
+                      <div
+                        className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs text-[var(--muted)]"
+                        title={tx(
+                          "Bugünkü günlük kota ve satın alınan bonus kredi (İstanbul günü).",
+                          "Today’s daily quota and purchased bonus credits (Istanbul day).",
+                        )}
+                      >
+                        <div className="inline-flex items-center gap-1.5">
+                          <LogoMark className="h-4 w-4 shrink-0" />
+                          {dailyUsage.premium ? (
+                            <>
+                              <span className="rounded-full border border-[var(--accent)]/50 bg-[var(--accent-dim)] px-1.5 py-0.5 font-semibold text-[var(--accent)]">
+                                Premium
+                              </span>
+                              <span className="tabular-nums font-semibold text-[var(--text)]">
+                                {dailyUsage.creditBalance}
+                              </span>
+                              <span>{tx("bonus kredi", "bonus cr.")}</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="font-medium text-[var(--text)]">
+                                {tx("Günlük", "Daily")} {dailyUsage.remaining}/{dailyUsage.limit}
+                              </span>
+                              <span className="rounded-full border border-[var(--brand-lab)]/40 bg-[var(--brand-lab-dim)] px-1.5 py-0.5 tabular-nums font-semibold text-[var(--text)]">
+                                +{dailyUsage.creditBalance} {tx("bonus", "bonus")}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                        {!dailyUsage.premium ? (
+                          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--border)]/50">
+                            <div
+                              className="h-full rounded-full bg-[var(--accent)] transition-all duration-300"
+                              style={{
+                                width: `${Math.max(
+                                  0,
+                                  Math.min(
+                                    100,
+                                    ((dailyUsage.limit - dailyUsage.remaining) / Math.max(1, dailyUsage.limit)) * 100,
+                                  ),
+                                )}%`,
+                              }}
+                            />
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    <Link
+                      href={isEn ? "/en/profile" : "/tr/profil"}
+                      title={tx("Profilim", "My profile")}
+                      className="app-pressable rounded-md border border-[var(--border)] px-3 py-2 text-center text-sm font-medium text-[var(--text)] hover:bg-[var(--hover-surface)]"
                     >
-                      {dailyUsage.premium ? (
-                        <>
-                          <span className="font-medium text-[var(--accent)]">Premium</span>
-                          <span className="mx-1.5 text-[var(--border)]">·</span>
-                          <span className="tabular-nums text-[var(--text)]">{dailyUsage.creditBalance}</span>{" "}
-                          {tx("bonus kredi", "bonus cr.")}
-                        </>
-                      ) : (
-                        <>
-                          <span className="font-medium text-[var(--text)]">{dailyUsage.remaining}</span>{" "}
-                          {tx("günlük kalan", "daily left")}
-                          <span className="mx-1.5 text-[var(--border)]">·</span>
-                          <span className="tabular-nums font-medium text-[var(--text)]">{dailyUsage.creditBalance}</span>{" "}
-                          {tx("bonus", "bonus")}
-                        </>
-                      )}
-                    </div>
-                  ) : null}
+                      👤 {tx("Profilim", "My profile")}
+                    </Link>
+                  </>
+                ) : (
                   <Link
-                    href={isEn ? "/en/profile" : "/tr/profil"}
-                    title={tx("Profilim", "My profile")}
-                    className={`app-pressable rounded-md border border-[var(--border)] px-3 py-2 text-center text-sm font-medium text-[var(--text)] hover:bg-[var(--hover-surface)] ${
-                      sidebarCollapsed ? "px-2" : ""
-                    }`}
+                    href="/auth"
+                    title={t.login}
+                    className="app-pressable rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-center text-sm font-medium text-[var(--text)] hover:bg-[var(--hover-surface)]"
                   >
-                    👤 {!sidebarCollapsed ? tx("Profilim", "My profile") : ""}
+                    🔐 {t.login}
                   </Link>
-                </>
-              ) : (
+                )}
                 <Link
-                  href="/auth"
-                  title={t.login}
-                  className={`app-pressable rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-center text-sm font-medium text-[var(--text)] hover:bg-[var(--hover-surface)] ${
-                    sidebarCollapsed ? "px-2" : ""
-                  }`}
+                  href="/pricing"
+                  title={t.pricing}
+                  className="app-pressable rounded-md border border-[var(--accent)] bg-[var(--accent-dim)] px-3 py-2 text-center text-sm font-semibold text-[var(--text)] hover:opacity-95"
                 >
-                  🔐 {!sidebarCollapsed ? t.login : ""}
+                  💎 {t.pricing}
                 </Link>
-              )}
-              <Link
-                href="/pricing"
-                title={t.pricing}
-                className={`app-pressable rounded-md border border-[var(--accent)] bg-[var(--accent-dim)] px-3 py-2 text-center text-sm font-semibold text-[var(--text)] hover:opacity-95 ${
-                  sidebarCollapsed ? "px-2" : ""
-                }`}
-              >
-                💎 {!sidebarCollapsed ? t.pricing : ""}
-              </Link>
-            </div>
+              </div>
+            ) : null}
 
             <div id="tour-quick-start" className={`mt-5 border-t border-[var(--border)] pt-4 ${sidebarCollapsed ? "hidden lg:hidden" : ""}`}>
               <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">{t.quickStart}</p>
@@ -762,42 +818,95 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                   {starterCategory === "all" ? totalStarterVariants : categoryStarterVariants}
                 </span>
               </p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {(Object.keys(STARTER_CATEGORY_LABELS) as StarterCategory[]).map((cat) => (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => setStarterCategory(cat)}
-                    className={`app-pressable rounded-full border px-2.5 py-1 text-[11px] transition ${
-                      starterCategory === cat
-                        ? "border-[var(--brand-lab)] bg-[var(--brand-lab-dim)] text-[var(--brand-lab)]"
-                        : "border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]"
-                    }`}
-                  >
-                    {isEn ? STARTER_CATEGORY_LABELS_EN[cat] : STARTER_CATEGORY_LABELS[cat]}
-                  </button>
-                ))}
-              </div>
-              <div className="mt-3 grid gap-2">
-                {starterList.slice(0, 8).map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => applyStarter(s)}
-                    className="app-pressable rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2.5 py-2 text-left text-xs font-medium text-[var(--text)] transition hover:border-[var(--brand-lab)] hover:bg-[var(--brand-lab-dim)]"
-                  >
-                    {isEn ? QUICK_STARTER_LABELS_EN[s.id] ?? s.label : s.label}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => applyStarter(starterList[Math.floor(Math.random() * starterList.length)] ?? QUICK_STARTERS[0])}
-                  className="app-pressable rounded-lg border border-dashed border-[var(--accent)] px-2.5 py-2 text-xs font-medium text-[var(--accent)] transition hover:bg-[var(--brand-lab-dim)]"
+              <div className="mt-2 space-y-2">
+                <label htmlFor="starter-category-select" className="text-[11px] text-[var(--muted)]">
+                  {tx("Kategori", "Category")}
+                </label>
+                <select
+                  id="starter-category-select"
+                  value={starterCategory}
+                  onChange={(e) => setStarterCategory(e.target.value as StarterCategory)}
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2.5 py-2 text-xs text-[var(--text)]"
                 >
-                  🎲 {tx("Bana rastgele örnek ver", "Give me a random example")}
-                </button>
+                  {(Object.keys(STARTER_CATEGORY_LABELS) as StarterCategory[]).map((cat) => (
+                    <option key={cat} value={cat}>
+                      {isEn ? STARTER_CATEGORY_LABELS_EN[cat] : STARTER_CATEGORY_LABELS[cat]}
+                    </option>
+                  ))}
+                </select>
+
+                <label htmlFor="starter-item-select" className="text-[11px] text-[var(--muted)]">
+                  {tx("Örnek", "Preset")}
+                </label>
+                <select
+                  id="starter-item-select"
+                  value={selectedStarter?.id ?? ""}
+                  onChange={(e) => setSelectedStarterId(e.target.value)}
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2.5 py-2 text-xs text-[var(--text)]"
+                >
+                  {starterList.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {isEn ? QUICK_STARTER_LABELS_EN[s.id] ?? s.label : s.label}
+                    </option>
+                  ))}
+                </select>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedStarter) applyStarter(selectedStarter);
+                    }}
+                    className="app-pressable rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2.5 py-2 text-xs font-medium text-[var(--text)] hover:border-[var(--brand-lab)]"
+                  >
+                    {tx("Uygula", "Apply")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyStarter(starterList[Math.floor(Math.random() * starterList.length)] ?? QUICK_STARTERS[0])}
+                    className="app-pressable rounded-lg border border-dashed border-[var(--accent)] px-2.5 py-2 text-xs font-medium text-[var(--accent)] transition hover:bg-[var(--brand-lab-dim)]"
+                  >
+                    🎲 {tx("Rastgele", "Random")}
+                  </button>
+                </div>
               </div>
             </div>
+
+            {!sidebarCollapsed ? (
+              <div className="mt-5 border-t border-[var(--border)] pt-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">
+                  {tx("Son üretimler", "Recent history")}
+                </p>
+                {sidebarRecent.length === 0 ? (
+                  <p className="mt-2 text-xs text-[var(--muted)]">{tx("Henüz kayıt yok.", "No recent items yet.")}</p>
+                ) : (
+                  <ul className="mt-2 space-y-1.5">
+                    {sidebarRecent.map((row) => (
+                      <li key={row.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIntent(row.intent ?? "");
+                            if (row.target) {
+                              setTarget(row.target);
+                              setExpertMode(row.target !== "universal");
+                            }
+                            setTopic(row.topic ?? "");
+                            setTone(row.tone ?? "");
+                            setAudience(row.audience ?? "");
+                            setResult(row.prompt ?? null);
+                            setError(null);
+                          }}
+                          className="app-pressable w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 py-2 text-left text-[11px] text-[var(--muted)] hover:text-[var(--text)]"
+                          title={row.intent}
+                        >
+                          <span className="line-clamp-1">{row.intent || tx("(boş)", "(empty)")}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ) : null}
 
             <div className={`mt-5 border-t border-[var(--border)] pt-4 ${sidebarCollapsed ? "hidden lg:hidden" : ""}`}>
               <details className="group">
@@ -984,7 +1093,8 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           <label className="text-sm font-medium text-[var(--text)]" htmlFor="workbench-intent">
             {t.promptQuestion}
           </label>
-          <textarea
+          <div className="relative">
+            <textarea
             id="workbench-intent"
             value={intent}
             onChange={(e) => setIntent(e.target.value)}
@@ -995,8 +1105,20 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
               "Örn: E-ticaret sitem için anneler günü kampanyasına 3 Instagram gönderi metni…",
               "e.g. Write 3 Instagram post drafts for a Mother's Day campaign for my e-commerce brand...",
             )}
-            className="min-h-[120px] resize-y rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-[15px] leading-relaxed text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
-          />
+            className="min-h-[120px] w-full resize-y rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 pr-10 text-[15px] leading-relaxed text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+            />
+            {intent.trim() ? (
+              <button
+                type="button"
+                onClick={() => setIntent("")}
+                className="app-pressable absolute right-2 top-2 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 text-xs text-[var(--muted)] hover:text-[var(--text)]"
+                title={tx("Metni temizle", "Clear input")}
+                aria-label={tx("Metni temizle", "Clear input")}
+              >
+                ✕
+              </button>
+            ) : null}
+          </div>
           <p className="text-xs text-[var(--muted)]">
             {tx("İpucu:", "Tip:")} <kbd className="rounded border border-[var(--border)] bg-[var(--bg)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--text)]">Ctrl</kbd>
             +
@@ -1007,6 +1129,14 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
             <kbd className="rounded border border-[var(--border)] bg-[var(--bg)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--text)]">Enter</kbd>
             {")"}
           </p>
+
+          <button
+            type="submit"
+            disabled={loading || !intent.trim()}
+            className="inline-flex items-center justify-center rounded-lg bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-[var(--on-accent)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {loading ? t.creating : tx("Profesyonel prompt oluştur", "Generate professional prompt")}
+          </button>
 
           {expertMode && mediaKind ? (
             <div className="rounded-lg border border-[var(--brand-lab)]/35 bg-[var(--brand-lab-dim)]/25 p-4">
@@ -1255,8 +1385,17 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
             <span className="text-sm font-medium text-[var(--text)]">{tx("Hedef / optimizasyon", "Target / optimization")}</span>
             {!expertMode ? (
               <div className="rounded-lg border border-[var(--brand-lab)]/35 bg-[var(--brand-lab-dim)]/40 px-4 py-3">
-                <p className="text-sm font-medium text-[var(--text)]">{tx("Akıllı optimizasyon (varsayılan)", "Smart optimization (default)")}</p>
-                <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">{targetHint}</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-[var(--text)]">{tx("Akıllı optimizasyon (varsayılan)", "Smart optimization (default)")}</p>
+                  <details className="group">
+                    <summary className="cursor-pointer list-none rounded-full border border-[var(--border)] bg-[var(--bg)] px-2 py-0.5 text-xs text-[var(--muted)] hover:text-[var(--text)]">
+                      i
+                    </summary>
+                    <div className="animate-panel-pop-in mt-2 max-w-md rounded-lg border border-[var(--border)] bg-[var(--bg)] p-2 text-xs leading-relaxed text-[var(--muted)]">
+                      {targetHint}
+                    </div>
+                  </details>
+                </div>
                 <button
                   type="button"
                   onClick={() => setExpertMode(true)}
@@ -1491,10 +1630,10 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
             id="tour-submit"
             type="submit"
             disabled={loading || !intent.trim()}
-            className="inline-flex items-center justify-center rounded-lg bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-[var(--on-accent)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {loading ? t.creating : tx("Profesyonel prompt oluştur", "Generate professional prompt")}
-          </button>
+            className="hidden"
+            aria-hidden="true"
+            tabIndex={-1}
+          />
         </form>
 
         {isLoaded && user?.id && showSceneProjectUI && activeProject ? (

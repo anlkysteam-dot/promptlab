@@ -3,6 +3,7 @@
 :root {
   --bg: #0b0f14;
   --surface: #121922;
+  --panel-surface: #0f1520;
   --border: #243044;
   --text: #e8eef7;
   --muted: #8b9cb3;
@@ -31,6 +32,7 @@
 :root[data-theme="light"] {
   --bg: #eef2f7;
   --surface: #ffffff;
+  --panel-surface: #e8edf5;
   --border: #c9d4e3;
   --text: #0f172a;
   --muted: #5c6b80;
