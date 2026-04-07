@@ -172,6 +172,7 @@ export async function POST(req: Request) {
   const mjIncludeVersion = Boolean((body as { mjIncludeVersion?: boolean })?.mjIncludeVersion);
   const mjIncludeAr = Boolean((body as { mjIncludeAr?: boolean })?.mjIncludeAr);
   const includeSuggestedParams = Boolean((body as { includeSuggestedParams?: boolean })?.includeSuggestedParams);
+  const continuityLock = Boolean((body as { continuityLock?: boolean })?.continuityLock);
 
   if (!intent || intent.length > 12_000) {
 
@@ -453,6 +454,9 @@ export async function POST(req: Request) {
     const composedUserInput = [
       "Rewrite the following user request into a high-quality English prompt for the selected AI target.",
       "Do not translate literally; optimize for result quality.",
+      activeProject && activeProject.scenes.length > 0 && continuityLock
+        ? "If this is scene 2+ in a sequence, continue from where the previous scene ended, and NEVER change core physical character traits (hair, face, clothing, body specifics)."
+        : "",
       qualityModeInstruction(qualityMode),
       outputLanguageInstruction(outputLanguage, target),
       templateInstruction(templateKind),

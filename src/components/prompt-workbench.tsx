@@ -101,6 +101,19 @@ const PROJECT_STYLE_PRESETS_EN = [
   "Minimal flat",
 ] as const;
 
+function stylePresetVisual(stylePreset: string): { icon: string; chipClass: string } {
+  const key = stylePreset.toLowerCase();
+  if (key.includes("cyber")) return { icon: "🟣", chipClass: "border-fuchsia-400/50 bg-fuchsia-500/15 text-fuchsia-200" };
+  if (key.includes("anime")) return { icon: "🎌", chipClass: "border-pink-400/50 bg-pink-500/15 text-pink-200" };
+  if (key.includes("sinem") || key.includes("cinematic"))
+    return { icon: "🎬", chipClass: "border-amber-300/45 bg-amber-500/15 text-amber-100" };
+  if (key.includes("real")) return { icon: "📷", chipClass: "border-emerald-300/45 bg-emerald-500/15 text-emerald-100" };
+  if (key.includes("belgesel") || key.includes("documentary"))
+    return { icon: "📽️", chipClass: "border-sky-300/45 bg-sky-500/15 text-sky-100" };
+  if (key.includes("yağlı") || key.includes("oil")) return { icon: "🎨", chipClass: "border-orange-300/45 bg-orange-500/15 text-orange-100" };
+  return { icon: "✨", chipClass: "border-[var(--border)] bg-[var(--bg)] text-[var(--text)]" };
+}
+
 function defaultMediaPresetForTarget(target: AiTargetId): MediaPreset {
   switch (target) {
     case "runway":
@@ -250,6 +263,12 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
   const [starterCategory, setStarterCategory] = useState<StarterCategory>("all");
   const [selectedStarterId, setSelectedStarterId] = useState<string>("");
   const [sidebarRecent, setSidebarRecent] = useState<RecentPromptEntry[]>([]);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [savedCharacters, setSavedCharacters] = useState<Array<{ name: string; profile: string }>>([]);
+  const [selectedCharacterName, setSelectedCharacterName] = useState("");
+  const [characterNameDraft, setCharacterNameDraft] = useState("");
+  const [editingCharacterName, setEditingCharacterName] = useState("");
+  const [continuityLock, setContinuityLock] = useState(true);
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string>("");
   const [projectTitle, setProjectTitle] = useState("");
@@ -425,6 +444,29 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
   }, [isLoaded, user?.id, result]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem("promptlab_character_library_v1");
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Array<{ name: string; profile: string }>;
+      if (Array.isArray(parsed)) {
+        setSavedCharacters(
+          parsed.filter(
+            (c) => typeof c?.name === "string" && c.name.trim() && typeof c?.profile === "string" && c.profile.trim(),
+          ),
+        );
+      }
+    } catch {
+      // no-op
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem("promptlab_character_library_v1", JSON.stringify(savedCharacters.slice(0, 30)));
+  }, [savedCharacters]);
+
+  useEffect(() => {
     if (qualityMode !== "advanced") return;
     if (!mediaKind) return;
     setMediaPreset((prev) => {
@@ -504,6 +546,7 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
           mjIncludeAr: effectiveTarget === "midjourney" ? mjIncludeAr : false,
           mjVersion: effectiveTarget === "midjourney" ? mjVersion : "6",
           includeSuggestedParams: expertMode && includeSuggestedParams,
+          continuityLock,
         }),
       });
       const raw = await r.text();
@@ -626,6 +669,39 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
     }
   }
 
+  function saveCharacterToLibrary() {
+    const name = characterNameDraft.trim();
+    const profile = projectCharacterProfile.trim();
+    if (!name || !profile) return;
+    const finalName = editingCharacterName || name;
+    setSavedCharacters((prev) => [{ name: finalName, profile }, ...prev.filter((c) => c.name !== finalName)].slice(0, 30));
+    setEditingCharacterName("");
+    setSelectedCharacterName(finalName);
+    setCharacterNameDraft("");
+  }
+
+  function applyCharacterFromLibrary(name: string) {
+    const row = savedCharacters.find((c) => c.name === name);
+    if (!row) return;
+    setProjectCharacterProfile(row.profile);
+    setSelectedCharacterName(name);
+  }
+
+  function removeCharacterFromLibrary(name: string) {
+    setSavedCharacters((prev) => prev.filter((c) => c.name !== name));
+    if (selectedCharacterName === name) setSelectedCharacterName("");
+    if (editingCharacterName === name) setEditingCharacterName("");
+  }
+
+  function startEditingCharacter(name: string) {
+    const row = savedCharacters.find((c) => c.name === name);
+    if (!row) return;
+    setEditingCharacterName(name);
+    setCharacterNameDraft(name);
+    setProjectCharacterProfile(row.profile);
+    setSelectedCharacterName(name);
+  }
+
   function editScene(scene: SceneItem) {
     setIntent(scene.userInput);
   }
@@ -703,12 +779,24 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
         {tx("prompt üretildi", "prompts generated")} — <span className="text-[var(--muted)]">{tx("beta tahmini", "beta estimate")}</span>
       </div>
 
+      <div className="lg:hidden">
+        <button
+          type="button"
+          onClick={() => setMobileSidebarOpen((v) => !v)}
+          className="app-pressable rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)]"
+        >
+          {mobileSidebarOpen ? tx("Menüyü kapat", "Close menu") : tx("Menü", "Menu")}
+        </button>
+      </div>
+
       <div
         className={`grid gap-6 lg:items-start ${
           sidebarCollapsed ? "lg:grid-cols-[92px_minmax(0,1fr)]" : "lg:grid-cols-[260px_minmax(0,1fr)]"
         }`}
       >
-        <aside className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
+        <aside
+          className={`${mobileSidebarOpen ? "block" : "hidden"} lg:sticky lg:top-4 lg:block lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto`}
+        >
           <div className="animate-app-panel-in rounded-xl border border-[var(--border)] bg-[var(--panel-surface)] p-4">
             <div className="mb-4 flex items-center gap-2 border-b border-[var(--border)] pb-3">
               <LogoMark className="h-7 w-7 shrink-0" />
@@ -877,7 +965,23 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                   {tx("Son üretimler", "Recent history")}
                 </p>
                 {sidebarRecent.length === 0 ? (
-                  <p className="mt-2 text-xs text-[var(--muted)]">{tx("Henüz kayıt yok.", "No recent items yet.")}</p>
+                  <div className="mt-2 rounded-lg border border-dashed border-[var(--border)] bg-[var(--bg)] px-2.5 py-2 text-xs text-[var(--muted)]">
+                    <p>{tx("Henüz bir üretim yok.", "No generations yet.")}</p>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setIntent(
+                          tx(
+                            "Markam için 3 farklı Instagram post fikri ve açıklama metni üret.",
+                            "Generate 3 Instagram post ideas with captions for my brand.",
+                          ),
+                        )
+                      }
+                      className="mt-2 text-[var(--accent)] underline underline-offset-2"
+                    >
+                      {tx("İlk üretimini başlat", "Start your first generation")}
+                    </button>
+                  </div>
                 ) : (
                   <ul className="mt-2 space-y-1.5">
                     {sidebarRecent.map((row) => (
@@ -1309,6 +1413,34 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
               </div>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
                 <div>
+                  <label htmlFor="project-character-library" className="mb-1 block text-xs text-[var(--muted)]">
+                    {tx("Karakterlerim", "My characters")}
+                  </label>
+                  <div className="mb-2 grid gap-2 sm:grid-cols-[1fr_auto]">
+                    <select
+                      id="project-character-library"
+                      value={selectedCharacterName}
+                      onChange={(e) => {
+                        const name = e.target.value;
+                        setSelectedCharacterName(name);
+                        if (name) applyCharacterFromLibrary(name);
+                      }}
+                      className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                    >
+                      <option value="">{tx("Kütüphaneden seç", "Pick from library")}</option>
+                      {savedCharacters.map((c) => (
+                        <option key={c.name} value={c.name}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      value={characterNameDraft}
+                      onChange={(e) => setCharacterNameDraft(e.target.value)}
+                      placeholder={tx("İsim", "Name")}
+                      className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs text-[var(--text)]"
+                    />
+                  </div>
                   <label htmlFor="project-character-profile" className="mb-1 block text-xs text-[var(--muted)]">
                     {tx("Karakter bilgisi (opsiyonel)", "Character profile (optional)")}
                   </label>
@@ -1323,6 +1455,52 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                     )}
                     className="w-full resize-y rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
                   />
+                  <button
+                    type="button"
+                    onClick={saveCharacterToLibrary}
+                    className="mt-2 rounded-md border border-[var(--border)] px-2.5 py-1 text-xs text-[var(--text)] hover:bg-[var(--hover-surface)]"
+                  >
+                    {editingCharacterName
+                      ? tx("Karakteri güncelle", "Update character")
+                      : tx("Karakteri kaydet", "Save character")}
+                  </button>
+                  {savedCharacters.length > 0 ? (
+                    <ul className="mt-2 space-y-1.5">
+                      {savedCharacters.slice(0, 6).map((c) => (
+                        <li
+                          key={c.name}
+                          className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5 text-xs"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <button
+                              type="button"
+                              onClick={() => applyCharacterFromLibrary(c.name)}
+                              className="line-clamp-1 text-left font-medium text-[var(--text)] hover:text-[var(--accent)]"
+                              title={c.profile}
+                            >
+                              {c.name}
+                            </button>
+                            <div className="flex gap-1">
+                              <button
+                                type="button"
+                                onClick={() => startEditingCharacter(c.name)}
+                                className="rounded border border-[var(--border)] px-1.5 py-0.5 text-[10px] text-[var(--muted)] hover:text-[var(--text)]"
+                              >
+                                {tx("Düz", "Edit")}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeCharacterFromLibrary(c.name)}
+                                className="rounded border border-[var(--err-border)] px-1.5 py-0.5 text-[10px] text-[var(--err-fg)]"
+                              >
+                                {tx("Sil", "Del")}
+                              </button>
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                 </div>
                 <div>
                   <label htmlFor="project-style-preset" className="mb-1 block text-xs text-[var(--muted)]">
@@ -1344,6 +1522,14 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                       </option>
                     ))}
                   </select>
+                  <div
+                    className={`mb-2 rounded-lg border px-3 py-2 text-xs ${stylePresetVisual(String(projectStylePreset)).chipClass}`}
+                  >
+                    <span className="font-medium">
+                      {stylePresetVisual(String(projectStylePreset)).icon} {tx("Stil kartı:", "Style card:")}
+                    </span>{" "}
+                    <span className="font-semibold">{projectStylePreset}</span>
+                  </div>
                   <label htmlFor="project-style-profile" className="mb-1 block text-xs text-[var(--muted)]">
                     {tx("Stil bilgisi (opsiyonel)", "Style profile (optional)")}
                   </label>
@@ -1377,6 +1563,20 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                     </option>
                   ))}
                 </select>
+                <label className="mt-2 inline-flex cursor-pointer items-center gap-2 text-xs text-[var(--muted)]">
+                  <input
+                    type="checkbox"
+                    checked={continuityLock}
+                    onChange={(e) => setContinuityLock(e.target.checked)}
+                    className="rounded border-[var(--border)]"
+                  />
+                  <span>
+                    {tx(
+                      "Devamlılık kilidi (karakter fiziksel özelliklerini sabit tut)",
+                      "Continuity lock (keep core physical character traits fixed)",
+                    )}
+                  </span>
+                </label>
               </div>
             </div>
           ) : null}
@@ -1433,7 +1633,12 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                     </option>
                   ))}
                 </select>
-                <p className="text-xs leading-relaxed text-[var(--muted)]">{targetHint}</p>
+                <details className="group">
+                  <summary className="cursor-pointer list-none text-xs text-[var(--muted)] hover:text-[var(--text)]">
+                    {tx("Hedef hakkında kısa bilgi", "Quick target hint")} ?
+                  </summary>
+                  <p className="animate-panel-pop-in mt-1 text-xs leading-relaxed text-[var(--muted)]">{targetHint}</p>
+                </details>
               </>
             )}
           </div>
@@ -1464,14 +1669,19 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                 {"Advanced"}
               </button>
             </div>
-            <p className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
-              {qualityMode === "advanced"
-                ? tx(
-                    "Daha sıkı kısıtlar, bölümlendirilmiş çıktı ve net kurallarla daha okunaklı prompt üretir.",
-                    "Produces more readable prompts with stricter constraints, sections, and explicit rules.",
-                  )
-                : tx("Hızlı ve dengeli bir kalite seviyesi sunar.", "Provides a fast and balanced quality level.")}
-            </p>
+            <details className="group mt-2">
+              <summary className="cursor-pointer list-none text-xs text-[var(--muted)] hover:text-[var(--text)]">
+                {tx("Kalite modu açıklaması", "Quality mode hint")} ?
+              </summary>
+              <p className="animate-panel-pop-in mt-1 text-xs leading-relaxed text-[var(--muted)]">
+                {qualityMode === "advanced"
+                  ? tx(
+                      "Daha sıkı kısıtlar, bölümlendirilmiş çıktı ve net kurallarla daha okunaklı prompt üretir.",
+                      "Produces more readable prompts with stricter constraints, sections, and explicit rules.",
+                    )
+                  : tx("Hızlı ve dengeli bir kalite seviyesi sunar.", "Provides a fast and balanced quality level.")}
+              </p>
+            </details>
             <p className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
               {dailyUsage?.premium
                 ? tx(
@@ -1678,6 +1888,17 @@ export function PromptWorkbench({ locale = "tr" }: { locale?: UiLocale }) {
                 ))}
               </ol>
             )}
+            {projectScenes.length > 0 ? (
+              <div className="mt-3 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs text-[var(--muted)]">
+                <p className="font-medium text-[var(--text)]">{tx("Senaryo akışı", "Story flow")}</p>
+                <p className="mt-1 line-clamp-3">
+                  {projectScenes
+                    .slice(-6)
+                    .map((s) => `${s.sceneNo}. ${s.userInput}`)
+                    .join(" → ")}
+                </p>
+              </div>
+            ) : null}
             {(activeProject.characterProfile || activeProject.styleProfile) && (
               <div className="mt-3 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs">
                 <p className="font-medium text-[var(--text)]">{tx("Proje continuity profili", "Project continuity profile")}</p>
